@@ -5,6 +5,7 @@ import com.register.backend.dto.response.PageResponse;
 import com.register.backend.dto.response.SubmissionResponse;
 import com.register.backend.entity.Submission;
 import com.register.backend.enums.SubmissionStatus;
+import com.register.backend.exception.ResourceNotFoundException;
 import com.register.backend.mapper.SubmissionMapper;
 import com.register.backend.repository.SubmissionRepository;
 import org.springframework.data.domain.Page;
@@ -51,6 +52,20 @@ public class SubmissionService {
                 page.getTotalElements(),
                 page.getTotalPages()
         );
+    }
+
+    /**
+     * Finds a single submission by ID and maps it to a response DTO.
+     *
+     * @param id the submission ID
+     * @return the mapped submission response
+     * @throws ResourceNotFoundException if no submission exists with the given ID
+     */
+    @Transactional(readOnly = true)
+    public SubmissionResponse getSubmissionById(Long id) {
+        Submission submission = submissionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found with id: " + id));
+        return submissionMapper.toResponse(submission);
     }
 
 }
