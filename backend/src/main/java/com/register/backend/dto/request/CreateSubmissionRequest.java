@@ -10,19 +10,12 @@ public record CreateSubmissionRequest(
         @Size(max = 200)
         String fullName,
 
-        @NotBlank
-        @Email
+        @Email(message = "must be a valid email")
         @Size(max = 255)
         String email,
 
         @Size(max = 30)
         String phone,
-
-        @Size(max = 200)
-        String company,
-
-        @Size(max = 200)
-        String position,
 
         @Size(max = 2000)
         String message

@@ -28,18 +28,11 @@ public class Submission {
     @Column(name = "full_name", nullable = false, length = 200)
     private String fullName;
 
-    @NotBlank
-    @Column(nullable = false, length = 255)
+    @Column(length = 255)
     private String email;
 
     @Column(length = 30)
     private String phone;
-
-    @Column(length = 200)
-    private String company;
-
-    @Column(length = 200)
-    private String position;
 
     @Column(columnDefinition = "TEXT")
     private String message;
@@ -97,22 +90,6 @@ public class Submission {
 
     public void setPhone(String phone) {
         this.phone = phone;
-    }
-
-    public String getCompany() {
-        return company;
-    }
-
-    public void setCompany(String company) {
-        this.company = company;
-    }
-
-    public String getPosition() {
-        return position;
-    }
-
-    public void setPosition(String position) {
-        this.position = position;
     }
 
     public String getMessage() {
