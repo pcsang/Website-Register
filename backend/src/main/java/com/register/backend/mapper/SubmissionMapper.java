@@ -13,8 +13,6 @@ public class SubmissionMapper {
         submission.setFullName(request.fullName());
         submission.setEmail(request.email());
         submission.setPhone(request.phone());
-        submission.setCompany(request.company());
-        submission.setPosition(request.position());
         submission.setMessage(request.message());
         return submission;
     }
@@ -25,8 +23,6 @@ public class SubmissionMapper {
                 submission.getFullName(),
                 submission.getEmail(),
                 submission.getPhone(),
-                submission.getCompany(),
-                submission.getPosition(),
                 submission.getMessage(),
                 submission.getStatus(),
                 submission.getCreatedAt(),

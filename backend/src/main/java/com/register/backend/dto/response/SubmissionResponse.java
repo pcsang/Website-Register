@@ -9,8 +9,6 @@ public record SubmissionResponse(
         String fullName,
         String email,
         String phone,
-        String company,
-        String position,
         String message,
         SubmissionStatus status,
         LocalDateTime createdAt,
