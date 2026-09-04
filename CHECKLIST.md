@@ -69,7 +69,17 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
        Also added a case for `MethodArgumentTypeMismatchException` so an invalid `?status=` value returns
        `400` instead of `500`.
 
-- [ ] **Phase 7 — Admin Submission Detail** (`GET /api/admin/submissions/{id}`)
+- [x] **Phase 7 — Admin Submission Detail** (`GET /api/admin/submissions/{id}`)
+  - Log (2026-09-04): `SubmissionService.getSubmissionById()` (`@Transactional(readOnly = true)`) looks up
+    via `submissionRepository.findById()`, `orElseThrow(() -> new ResourceNotFoundException("Submission not
+    found with id: " + id))` (same message format already established/tested in
+    `GlobalExceptionHandlerTest`), maps to `SubmissionResponse` via the existing `SubmissionMapper`. New
+    `GET /{id}` method added to the existing `AdminSubmissionController` — no new controller class, no new
+    exception type, no duplicate exception handling (existing `ResourceNotFoundException` → 404 handler
+    from Phase 5 fires as-is). New `SubmissionServiceTest` (Mockito, `@ExtendWith(MockitoExtension.class)`)
+    covers submission-exists (mapped response returned) and submission-does-not-exist
+    (`ResourceNotFoundException` thrown, mapper never invoked). Verified 200/404 end-to-end against the
+    running app and live database (`POST` a submission, then `GET` its ID and a nonexistent ID).
 - [ ] **Phase 8 — Update Submission Status** (`PATCH /api/admin/submissions/{id}/status`)
 - [ ] **Phase 9 — Dashboard Summary** (`GET /api/admin/dashboard/summary`)
 - [ ] **Phase 10 — CORS**
