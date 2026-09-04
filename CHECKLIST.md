@@ -45,7 +45,30 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     the catch-all was turning ordinary unmatched-route 404s into false 500s. `@Email` message customized to
     match the spec's exact wording. Verified 400/404/500 shapes against the running app.
 
-- [ ] **Phase 6 — Admin Submission List** (`GET /api/admin/submissions` — pagination, search, filter)
+- [x] **Phase 6 — Admin Submission List** (`GET /api/admin/submissions` — pagination, search, filter)
+  - Log (2026-09-04): `AdminSubmissionController` + `SubmissionService.listSubmissions()` +
+    `SubmissionRepository.search()` (single JPQL `@Query` with `(:param IS NULL OR ...)` guards — chosen
+    over Specification since there are only two optional filters; simplest maintainable option per the
+    phase's requirement 12). `page`/`size`/`sort` bound automatically via a `Pageable` controller
+    parameter (`@PageableDefault` for `createdAt DESC`); `spring.data.web.pageable.max-page-size: 100`
+    added to `application.yml` to cap oversized `size` requests. New `PageResponse<T>` DTO
+    (`content, page, size, totalElements, totalPages`). Filtering/paging execute at the database level
+    (verified via the generated SQL in the app log, not just assumed).
+  - **Deviation (2026-09-04):** requirement 3 said to search across fullName/email/phone/company, but
+    `company` no longer exists on the entity (removed in the Phase 4 deviation above) — searched
+    fullName/email/phone only.
+  - **Bugs found and fixed while verifying against a live database (not caught by `mvn verify` — the unit
+    tests don't exercise this against real Postgres):**
+    1. A `null` `:search` bind inside `LOWER(...)` made PostgreSQL fail with `function lower(bytea) does
+       not exist` — a known Hibernate/PostgreSQL gotcha for untyped nullable string parameters. Fixed with
+       `CAST(:search AS string)` in the JPQL.
+    2. An invalid `sort` field (e.g. `?sort=company,asc`) fell through the existing catch-all exception
+       handler as a false `500` instead of `400`. Added a `GlobalExceptionHandler` case for
+       `InvalidDataAccessApiUsageException` (what Spring Data actually throws here — an initial guess of
+       `PropertyReferenceException` was wrong and was corrected after checking the real stack trace).
+       Also added a case for `MethodArgumentTypeMismatchException` so an invalid `?status=` value returns
+       `400` instead of `500`.
+
 - [ ] **Phase 7 — Admin Submission Detail** (`GET /api/admin/submissions/{id}`)
 - [ ] **Phase 8 — Update Submission Status** (`PATCH /api/admin/submissions/{id}/status`)
 - [ ] **Phase 9 — Dashboard Summary** (`GET /api/admin/dashboard/summary`)
