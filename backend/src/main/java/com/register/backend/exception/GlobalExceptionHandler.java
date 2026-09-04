@@ -3,12 +3,14 @@ package com.register.backend.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
@@ -56,6 +58,47 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    /**
+     * Handles a query/path parameter that couldn't be converted to its target type — e.g. an unrecognized
+     * {@code status} value on {@code GET /api/admin/submissions}. Without this handler, Spring's
+     * conversion failure would fall through to the generic 500 handler below.
+     *
+     * @param ex      the conversion failure
+     * @param request the current request, used to report the failing path
+     * @return a 400 response naming the offending parameter
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
+                                                              HttpServletRequest request) {
+        ErrorResponse body = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Invalid value for parameter '" + ex.getName() + "'",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /**
+     * Handles a {@code sort} query parameter referencing a property that doesn't exist on the sorted
+     * entity — e.g. {@code ?sort=company,asc} after that field was removed. Spring Data wraps Hibernate's
+     * underlying "unknown attribute" failure as an {@link InvalidDataAccessApiUsageException}. Without
+     * this handler, the failure would fall through to the generic 500 handler below.
+     *
+     * @param ex      the wrapped query-usage failure
+     * @param request the current request, used to report the failing path
+     * @return a 400 response
+     */
+    @ExceptionHandler(InvalidDataAccessApiUsageException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidSortProperty(InvalidDataAccessApiUsageException ex,
+                                                                     HttpServletRequest request) {
+        ErrorResponse body = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Invalid sort field",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
     @ExceptionHandler(Exception.class)
