@@ -71,4 +71,45 @@ class SubmissionServiceTest {
         verifyNoInteractions(submissionMapper);
     }
 
+    @Test
+    void updateStatusUpdatesAndReturnsMappedResponseWhenSubmissionExists() {
+        Long id = 1L;
+        Submission submission = new Submission();
+        submission.setId(id);
+        submission.setFullName("Jane Doe");
+        submission.setEmail("jane@example.com");
+        submission.setPhone("0123456789");
+        submission.setMessage("Hello");
+        submission.setStatus(SubmissionStatus.NEW);
+
+        SubmissionResponse expectedResponse = new SubmissionResponse(
+                id, "Jane Doe", "jane@example.com", "0123456789", "Hello",
+                SubmissionStatus.IN_PROGRESS, LocalDateTime.now(), LocalDateTime.now());
+
+        when(submissionRepository.findById(id)).thenReturn(Optional.of(submission));
+        when(submissionRepository.saveAndFlush(submission)).thenReturn(submission);
+        when(submissionMapper.toResponse(submission)).thenReturn(expectedResponse);
+
+        SubmissionResponse actual = submissionService.updateStatus(id, SubmissionStatus.IN_PROGRESS);
+
+        assertThat(actual).isEqualTo(expectedResponse);
+        assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.IN_PROGRESS);
+        verify(submissionRepository).findById(id);
+        verify(submissionRepository).saveAndFlush(submission);
+        verify(submissionMapper).toResponse(submission);
+    }
+
+    @Test
+    void updateStatusThrowsResourceNotFoundExceptionWhenSubmissionDoesNotExist() {
+        Long id = 999L;
+        when(submissionRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> submissionService.updateStatus(id, SubmissionStatus.IN_PROGRESS))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Submission not found with id: " + id);
+
+        verify(submissionRepository).findById(id);
+        verifyNoInteractions(submissionMapper);
+    }
+
 }
