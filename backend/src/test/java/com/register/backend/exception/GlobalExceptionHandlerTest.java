@@ -1,5 +1,6 @@
 package com.register.backend.exception;
 
+import com.register.backend.dto.request.UpdateSubmissionStatusRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -53,6 +54,20 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void malformedRequestBodyReturns400() throws Exception {
+        mockMvc.perform(post("/test/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\": \"NOT_A_STATUS\"}"))
+                .andDo(print())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Malformed request body"))
+                .andExpect(jsonPath("$.errors").doesNotExist())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.path").value("/test/status"));
+    }
+
+    @Test
     void unexpectedErrorReturns500WithoutStackTrace() throws Exception {
         mockMvc.perform(get("/test/boom"))
                 .andDo(print())
@@ -69,6 +84,11 @@ class GlobalExceptionHandlerTest {
 
         @PostMapping("/test/validate")
         public String validate(@Valid @RequestBody TestRequest request) {
+            return "ok";
+        }
+
+        @PostMapping("/test/status")
+        public String status(@Valid @RequestBody UpdateSubmissionStatusRequest request) {
             return "ok";
         }
 

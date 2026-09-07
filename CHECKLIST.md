@@ -80,7 +80,27 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     covers submission-exists (mapped response returned) and submission-does-not-exist
     (`ResourceNotFoundException` thrown, mapper never invoked). Verified 200/404 end-to-end against the
     running app and live database (`POST` a submission, then `GET` its ID and a nonexistent ID).
-- [ ] **Phase 8 — Update Submission Status** (`PATCH /api/admin/submissions/{id}/status`)
+- [x] **Phase 8 — Update Submission Status** (`PATCH /api/admin/submissions/{id}/status`)
+  - Log (2026-09-07): `UpdateSubmissionStatusRequest` (record, `status` typed as the `SubmissionStatus` enum
+    directly + `@NotNull`). `SubmissionService.updateStatus()` (`@Transactional`) looks up via
+    `findById`/`orElseThrow(ResourceNotFoundException)` (same pattern as Phase 7), sets the new status, and
+    persists via `submissionRepository.saveAndFlush()`, then maps to `SubmissionResponse`. New
+    `PATCH /{id}/status` method on the existing `AdminSubmissionController`. Added a
+    `GlobalExceptionHandler` case for `HttpMessageNotReadableException` (400) — Jackson rejects an
+    unrecognized enum string (e.g. `"BOGUS"`) before validation ever runs, so it needed its own handler
+    separate from the existing `MethodArgumentNotValidException` one (which still covers a present-but-null
+    `status`). `SubmissionServiceTest` gained `updateStatus` success/not-found cases;
+    `GlobalExceptionHandlerTest` gained a case exercising the malformed-body/invalid-enum path end to end via
+    MockMvc (judged that this deserialization boundary is better tested at the web layer, since by the time
+    a value reaches the service it's already a valid enum). Verified 200/404/400×2 end-to-end against the
+    running app and live database.
+  - **Bug found and fixed while verifying against a live database (not caught by `mvn verify` — the unit
+    tests mock the repository, so they don't exercise real flush timing):** the initial implementation used
+    `submissionRepository.save()`, and the response DTO was built immediately after — but Hibernate defers
+    the actual flush (and therefore the `@PreUpdate` callback that bumps `updatedAt`) to transaction commit,
+    which happens *after* the service method returns. The PATCH response was echoing back a stale
+    `updatedAt` (identical to `createdAt`) even though the DB was correctly updated a moment later. Switched
+    to `saveAndFlush()` so the flush — and `@PreUpdate` — runs before the response is mapped.
 - [ ] **Phase 9 — Dashboard Summary** (`GET /api/admin/dashboard/summary`)
 - [ ] **Phase 10 — CORS**
 

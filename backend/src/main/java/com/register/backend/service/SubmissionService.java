@@ -68,4 +68,24 @@ public class SubmissionService {
         return submissionMapper.toResponse(submission);
     }
 
+    /**
+     * Updates the status of an existing submission and persists the change.
+     *
+     * @param id     the submission ID
+     * @param status the new status to set
+     * @return the updated submission mapped to a response DTO
+     * @throws ResourceNotFoundException if no submission exists with the given ID
+     */
+    @Transactional
+    public SubmissionResponse updateStatus(Long id, SubmissionStatus status) {
+        Submission submission = submissionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found with id: " + id));
+        submission.setStatus(status);
+        // saveAndFlush (rather than save) forces the flush - and therefore the @PreUpdate callback that
+        // bumps updatedAt - to run immediately, so the mapped response below reflects the new updatedAt
+        // instead of a stale value captured before Hibernate's deferred end-of-transaction flush.
+        Submission saved = submissionRepository.saveAndFlush(submission);
+        return submissionMapper.toResponse(saved);
+    }
+
 }

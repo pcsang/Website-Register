@@ -1,14 +1,18 @@
 package com.register.backend.controller;
 
+import com.register.backend.dto.request.UpdateSubmissionStatusRequest;
 import com.register.backend.dto.response.PageResponse;
 import com.register.backend.dto.response.SubmissionResponse;
 import com.register.backend.enums.SubmissionStatus;
 import com.register.backend.service.SubmissionService;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,6 +53,18 @@ public class AdminSubmissionController {
     @GetMapping("/{id}")
     public SubmissionResponse getSubmission(@PathVariable Long id) {
         return submissionService.getSubmissionById(id);
+    }
+
+    /**
+     * Updates the status of a single submission.
+     *
+     * @param id      the submission ID
+     * @param request the new status to apply
+     * @return the updated submission
+     */
+    @PatchMapping("/{id}/status")
+    public SubmissionResponse updateStatus(@PathVariable Long id, @Valid @RequestBody UpdateSubmissionStatusRequest request) {
+        return submissionService.updateStatus(id, request.status());
     }
 
 }
