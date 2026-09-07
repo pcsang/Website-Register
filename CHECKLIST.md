@@ -101,8 +101,31 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     which happens *after* the service method returns. The PATCH response was echoing back a stale
     `updatedAt` (identical to `createdAt`) even though the DB was correctly updated a moment later. Switched
     to `saveAndFlush()` so the flush — and `@PreUpdate` — runs before the response is mapped.
-- [ ] **Phase 9 — Dashboard Summary** (`GET /api/admin/dashboard/summary`)
-- [ ] **Phase 10 — CORS**
+- [x] **Phase 9 — Dashboard Summary** (`GET /api/admin/dashboard/summary`)
+  - Log (2026-09-07): New `DashboardSummaryResponse` record (`@JsonProperty("new")` on the `newCount`
+    component so the JSON key is `new` while the Java identifier avoids the near-keyword). New
+    `DashboardService.getSummary()` (`@Transactional(readOnly = true)`) assembles the response from five
+    separate database `COUNT` queries against `SubmissionRepository`: `count()` (total),
+    `countByStatus(...)` ×3 (NEW/IN_PROGRESS/COMPLETED, new derived method), and
+    `countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(startOfToday, startOfTomorrow)` (new derived
+    method, half-open range) for "submitted today" — "today" computed via
+    `LocalDate.now().atStartOfDay()` / `.plusDays(1)`, i.e. server-local-time start-of-day through
+    start-of-next-day, matching how `Submission.createdAt` is populated
+    (`LocalDateTime.now()` in `@PrePersist`, no time zone stored) rather than assuming UTC. New
+    `DashboardController` (`/api/admin/dashboard/summary`) — separate from `AdminSubmissionController`
+    since the resource path differs. New `DashboardServiceTest` (Mockito) verifies the five repository
+    calls are made and the response is assembled correctly. Verified via `Hibernate: select count(...)`
+    log lines (5 queries, all `COUNT`, none loading full rows) and cross-checked the returned totals
+    against `psql` `GROUP BY status` / date-range counts on the live database.
+  - **Design note (multiple COUNT queries vs. one aggregate query):** five separate simple `COUNT` queries
+    were chosen over one grouped/aggregate query. For a single-entity app with an admin dashboard hit
+    infrequently (not a hot path), the simplicity and readability of derived Spring Data methods
+    (`countByStatus`, `countByCreatedAtGreaterThanEqualAndCreatedAtLessThan`) outweighs the minor
+    round-trip savings of a single `GROUP BY` query — and a `GROUP BY status` query wouldn't cover the
+    "today" count anyway (different predicate, not part of the status grouping), so it would still need a
+    second query, closing most of the gap. Building a single hand-rolled aggregate `@Query` for a handful
+    of `COUNT`s over one small table was judged premature optimization with no measured performance
+    problem to justify it.
 
 ---
 
