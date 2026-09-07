@@ -8,7 +8,27 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
+
 public interface SubmissionRepository extends JpaRepository<Submission, Long> {
+
+    /**
+     * Counts submissions with the given status, executed as a database COUNT query.
+     *
+     * @param status the status to count
+     * @return the number of submissions with that status
+     */
+    long countByStatus(SubmissionStatus status);
+
+    /**
+     * Counts submissions created within the given half-open time range (start inclusive, end exclusive),
+     * executed as a database COUNT query.
+     *
+     * @param start the inclusive start of the range
+     * @param end   the exclusive end of the range
+     * @return the number of submissions created within the range
+     */
+    long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(LocalDateTime start, LocalDateTime end);
 
     /**
      * Finds submissions matching an optional case-insensitive search term (across fullName, email, phone)
