@@ -127,11 +127,67 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     of `COUNT`s over one small table was judged premature optimization with no measured performance
     problem to justify it.
 
+- [x] **Phase 10 — CORS**
+  - Log (2026-09-08): New `config/CorsConfig` (`WebMvcConfigurer.addCorsMappings`, applied to `/api/**`)
+    — confirmed no Spring Security dependency exists yet, so plain Spring MVC CORS support is sufficient
+    and no new dependency was added. Allowed origins bound via `@Value("${app.cors.allowed-origins}")`
+    (constructor injection), split on `,` — `application.yml` adds `app.cors.allowed-origins:
+    ${ALLOWED_ORIGINS:http://localhost:4200}`, matching the existing `DB_URL`/`DB_USERNAME`/`DB_PASSWORD`
+    relaxed-binding-with-local-default pattern. Allowed methods restricted to `GET, POST, PATCH, OPTIONS`;
+    allowed headers `Content-Type, Authorization` (the latter future-proofed for Phase 16 JWT auth, not
+    used yet). No wildcard `*` origin — only the configured explicit origin list is echoed back.
+    `allowCredentials` intentionally left unset/default (no cookies/session-based auth planned; a future
+    JWT will travel via `Authorization` header, which doesn't need CORS credentials mode) — simplest
+    option that satisfies the requirement. Verified via `mvn clean verify` (11/11 tests unaffected) and
+    manually against the running app: `OPTIONS` preflight and `GET
+    /api/admin/dashboard/summary` with `Origin: http://localhost:4200` both returned
+    `Access-Control-Allow-Origin: http://localhost:4200`; the same `GET` with `Origin: http://evil.com`
+    was rejected with `403 Invalid CORS request` and no `Access-Control-Allow-Origin` header.
+
 ---
 
 ## User MVP (Phases 11–13)
 
-- [ ] **Phase 11 — Angular Setup**
+- [x] **Phase 11 — Angular Setup**
+  - Log (2026-09-07): New Angular project scaffolded at repo-root sibling `clientUI/` (not nested in
+    `backend/`), Angular 19 (the CLI's `@angular/cli@latest` requires Node ≥22.22.3/24.15.1/26 which this
+    machine's Node 22.14.0 doesn't satisfy — pinned to `@angular/cli@19`, still fully modern/standalone,
+    routing + SCSS, `--skip-git` since this repo already has its own git history). Angular Material added
+    via `ng add @angular/material` (indigo-pink theme, typography, animations); had to separately
+    `npm install @angular/animations` since the schematic didn't pull it in on its own, and manually add
+    `provideHttpClient()` + `provideAnimationsAsync()` to `app.config.ts` (the schematic didn't wire
+    providers into `app.config.ts` for this CLI version). Required folder structure created under
+    `src/app/`: `core/{services,interceptors,guards}`, `models/`, `public/information-form/`,
+    `admin/{dashboard,submission-detail}/`, `shared/` — the still-empty directories (`core/*`, `models/`,
+    `shared/`) got a `.gitkeep` so they survive being committed later. Three standalone placeholder
+    components generated via `ng generate component` (`InformationFormComponent`, `DashboardComponent`,
+    `SubmissionDetailComponent`), each rendering only a heading + one-line placeholder text; wired into
+    `app.routes.ts` for `/form`, `/admin/dashboard`, `/admin/submissions/:id` (plus a `''` → `/form`
+    redirect), with `app.component.html` reduced to a bare `<router-outlet>` (was the generated Angular
+    welcome-page boilerplate). `SubmissionDetailComponent` reads the `:id` route param via
+    `ActivatedRoute` (kept minimal — just `inject(ActivatedRoute).snapshot.paramMap.get('id')` displayed on
+    the placeholder, no data fetching) so routing can be verified end to end even though the phase forbids
+    real UI/API logic. `src/environments/environment.ts` / `environment.development.ts` generated via
+    `ng generate environments` (wires `fileReplacements` in `angular.json` automatically), both populated
+    with `apiBaseUrl: 'http://localhost:8080'` (matching Phase 11's stated backend dev URL; production has
+    no deployed backend yet so it points at the same value for now, with a comment noting it needs updating
+    at deploy time) — no HTTP service layer built yet, per the phase's explicit scope (that's Phase 12).
+    `core/guards/` and `core/interceptors/` left empty (no auth/interceptor logic, per requirement 9).
+    Fixed two build-environment issues unrelated to app code: `ng build`'s font-inlining step failed against
+    this network's self-signed-cert TLS interception when fetching Google Fonts at build time — disabled
+    with `optimization.fonts: false` on the production build config (Google Fonts are still loaded at
+    runtime via the existing `<link>` tags in `index.html`; this only turns off build-time CSS inlining of
+    the font). Also fixed the CLI-generated `app.component.spec.ts` (asserted on the now-removed welcome-page
+    `<h1>`) and `submission-detail.component.spec.ts` (missing `ActivatedRoute` test provider, needed once
+    the component started injecting it). Verified: `ng build` (production config) succeeds; `ng test
+    --watch=false --browsers=ChromeHeadless` — 6/6 pass; `ng serve` on port 4300 with manual `curl` checks
+    that `/form`, `/admin/dashboard`, and `/admin/submissions/42` all return `200` via the Angular dev
+    server's SPA history-API fallback (visual rendering not curl-able since this is a client-rendered SPA
+    with no SSR, but the served `index.html` + bundle files were confirmed correct and unit/component tests
+    cover each placeholder rendering).
+  - **Deviation:** none from the phase's functional requirements; the folder name `clientUI` (vs. a more
+    generic `frontend`) was an explicit instruction from the requester, not a roadmap deviation — the
+    roadmap doesn't name the frontend directory.
 - [ ] **Phase 12 — Angular API Models + Service**
 - [ ] **Phase 13 — Public User Form**
 
