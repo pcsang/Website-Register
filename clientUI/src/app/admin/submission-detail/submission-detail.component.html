@@ -1,3 +1,72 @@
-<h1>Submission Detail</h1>
-<p>Placeholder page — the submission detail UI will be implemented in a later phase.</p>
-<p>Route id: {{ id }}</p>
+<div class="detail-page">
+  <h1>Submission Detail</h1>
+
+  @if (loading) {
+    <div class="state-loading">
+      <mat-spinner diameter="32"></mat-spinner>
+    </div>
+  } @else if (notFound) {
+    <mat-card class="state-card">
+      <p>Submission not found.</p>
+      <button mat-stroked-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
+    </mat-card>
+  } @else if (loadError) {
+    <mat-card class="state-card">
+      <p>Something went wrong loading this submission.</p>
+      <button mat-stroked-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
+    </mat-card>
+  } @else if (submission) {
+    <mat-card class="detail-card">
+      <div class="detail-grid">
+        <div class="detail-label">Full Name</div>
+        <div class="detail-value">{{ submission.fullName }}</div>
+
+        <div class="detail-label">Email</div>
+        <div class="detail-value">{{ submission.email || '—' }}</div>
+
+        <div class="detail-label">Phone</div>
+        <div class="detail-value">{{ submission.phone || '—' }}</div>
+
+        <div class="detail-label">Message</div>
+        <div class="detail-value">{{ submission.message || '—' }}</div>
+
+        <div class="detail-label">Status</div>
+        <div class="detail-value">{{ submission.status }}</div>
+
+        <div class="detail-label">Created At</div>
+        <div class="detail-value">{{ submission.createdAt | date: 'medium' }}</div>
+
+        <div class="detail-label">Updated At</div>
+        <div class="detail-value">{{ submission.updatedAt | date: 'medium' }}</div>
+      </div>
+
+      <div class="status-update">
+        <mat-form-field appearance="outline" class="status-field">
+          <mat-label>Status</mat-label>
+          <mat-select [formControl]="statusControl">
+            @for (option of statusOptions; track option) {
+              <mat-option [value]="option">{{ option }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <button
+          mat-raised-button
+          color="primary"
+          [disabled]="isUpdateDisabled()"
+          (click)="updateStatus()"
+        >
+          @if (updating) {
+            <mat-spinner diameter="18"></mat-spinner>
+          } @else {
+            Update Status
+          }
+        </button>
+      </div>
+
+      <div class="actions">
+        <button mat-stroked-button (click)="backToDashboard()">Back to Dashboard</button>
+      </div>
+    </mat-card>
+  }
+</div>

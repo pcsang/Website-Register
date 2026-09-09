@@ -1,6 +1,7 @@
+import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute } from '@angular/router';
-import { convertToParamMap } from '@angular/router';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 
 import { SubmissionDetailComponent } from './submission-detail.component';
 
@@ -10,8 +11,9 @@ describe('SubmissionDetailComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [SubmissionDetailComponent],
+      imports: [SubmissionDetailComponent, HttpClientTestingModule, NoopAnimationsModule],
       providers: [
+        provideRouter([]),
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ id: '1' }) } }
