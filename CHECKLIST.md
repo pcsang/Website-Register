@@ -274,7 +274,46 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     At/Action — no Company column — inheriting the Phase 4 deviation (`company` removed from the backend
     entity/DTOs entirely) rather than a new decision made in this phase; the roadmap's original Phase 14
     prompt still lists a Company column that no longer has a corresponding field on `Submission`.
-- [ ] **Phase 15 — Submission Detail UI**
+- [x] **Phase 15 — Submission Detail UI**
+  - Log (2026-09-09): Implemented the `/admin/submissions/:id` page in the previously-scaffolded
+    `SubmissionDetailComponent` (`admin/submission-detail/`). Switched the `:id` read from the constructor
+    to `ngOnInit` (still `route.snapshot.paramMap.get('id')` — no need to react to the same instance being
+    reused for a different `:id`, so `snapshot` remains sufficient); an unparseable/missing `id` is treated
+    as the same not-found state as a backend 404. `SubmissionService.getSubmission(id)` is called on init
+    behind a `loading` flag (`mat-spinner`); the HTTP error handler narrows on `error instanceof
+    HttpErrorResponse && error.status === 404` to set a distinct `notFound` flag rendering an explicit "Submission
+    not found." message + Back to Dashboard button in the page body (not just a snackbar), separate from a
+    generic `loadError` state (any other failure) which also shows the same fallback card plus an error
+    snackbar via the same `extractErrorMessage(error, fallback)` pattern used in
+    `DashboardComponent`/`InformationFormComponent`. Once loaded, the page renders a two-column
+    label/value grid (Full Name, Email, Phone, Message, Status, Created At, Updated At — Company/Position
+    omitted, see deviation below), null `email`/`phone`/`message` rendered as `'—'` matching the dashboard
+    table's existing pattern, `createdAt`/`updatedAt` formatted via the `date: 'medium'` pipe. A `mat-select`
+    status dropdown (`statusControl`, `NEW`/`IN_PROGRESS`/`COMPLETED`) is initialized to the loaded
+    submission's status on every successful load; "Update Status" calls
+    `SubmissionService.updateStatus(id, statusControl.value)`, disabled via `isUpdateDisabled()` while a
+    save is in flight, while no submission is loaded, or when the selected value equals the submission's
+    current status (avoids a no-op PATCH). On success the displayed `submission` (including its refreshed
+    `updatedAt`) is replaced with the response and a success snackbar shown; on failure an error snackbar is
+    shown via the same `extractErrorMessage` helper and the button re-enables. "Back to Dashboard" (shown in
+    the not-found/error states and permanently under the loaded detail card) navigates via
+    `Router.navigate(['/admin/dashboard'])`. All HTTP logic stays inside the existing `SubmissionService` —
+    the component only calls it, never `HttpClient` directly. Responsive layout: the two-column
+    `detail-grid` (label/value) collapses to a single column below 600px, and the status
+    dropdown/update-button row stacks vertically at the same breakpoint, matching the
+    Phase 13/14 breakpoint convention. Updated `submission-detail.component.spec.ts` to add
+    `HttpClientTestingModule`, `NoopAnimationsModule`, and `provideRouter([])` to the `TestBed`
+    configuration (component now transitively injects `HttpClient` via `SubmissionService` and `Router`,
+    and uses Material components needing the animations module) — same pattern as the Phase 13/14 spec
+    fixes; the existing mocked `ActivatedRoute` (`{ snapshot: { paramMap: convertToParamMap({ id: '1' }) } }`)
+    was kept as-is. Verified: `ng build` succeeds (0 errors; same pre-existing bundle-budget warning
+    pattern as Phases 13/14, now 770.05 kB vs. the 500 kB budget — not addressed here, out of this phase's
+    scope) and `ng test --watch=false --browsers=ChromeHeadless` passes 6/6 (unchanged count — no new spec
+    files added, per the phase's minimal-test-touch instruction).
+  - **Deviation (2026-09-09):** displayed fields are Full Name/Email/Phone/Message/Status/Created
+    At/Updated At — no Company/Position fields — inheriting the Phase 4 deviation (`company`/`position`
+    removed from the backend entity/DTOs entirely), not a new decision made in this phase; the roadmap's
+    original Phase 15 prompt still lists Company/Position among the fields to display.
 
 ## Secured MVP (Phases 16–17)
 
