@@ -205,7 +205,35 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     explicit scope — UI wiring is Phases 13–15). Verified: `ng build` succeeds; `ng test --watch=false
     --browsers=ChromeHeadless` — 6/6 pass (unchanged, no new component tests needed here); no `any` used
     anywhere in the new code.
-- [ ] **Phase 13 — Public User Form**
+- [x] **Phase 13 — Public User Form**
+  - Log (2026-09-09): Implemented the `/form` page in the previously-scaffolded
+    `InformationFormComponent` (`public/information-form/`). `FormBuilder`-built reactive form with four
+    controls (`fullName`, `email`, `phone`, `message`), validators matching the real backend contract
+    exactly (see deviation note below): `fullName` `required` + `maxLength(200)`; `email` `email` +
+    `maxLength(255)`, no `required`; `phone` `maxLength(30)`; `message` `maxLength(2000)`. Angular Material
+    (`mat-card`, `mat-form-field`/`matInput`, `mat-error`, `mat-raised-button`, `mat-progress-spinner`,
+    `MatSnackBar`) used throughout; new `@if` control-flow syntax for conditional `mat-error`/spinner
+    rendering. `onSubmit()` guards against re-entrant submission via a `submitting` boolean (checked at the
+    top of the method and used to `[disabled]` the submit button), trims optional fields and omits them
+    entirely (`undefined`, not empty string) when blank before calling
+    `SubmissionService.createSubmission()`, resets the form and shows a success snack bar on success, and
+    on error extracts the backend's `GlobalExceptionHandler` `{message}` shape (falling back to a generic
+    message if the error body doesn't match) and shows it via a snack bar — never fails silently. All HTTP
+    logic stays in `SubmissionService` (Phase 12); the component only calls it. Layout is a centered,
+    single-column `mat-card` capped at `560px` with a small-viewport media query that stretches the submit
+    button full-width below `600px`. Updated `information-form.component.spec.ts` to add
+    `HttpClientTestingModule` and `NoopAnimationsModule` to the `TestBed` providers, since the component now
+    transitively injects `HttpClient` (via `SubmissionService`) and uses Material components that need the
+    animations module present in tests. Verified: `ng build` succeeds (0 errors; only a pre-existing-style
+    bundle-budget warning now that Material modules are pulled into this route, 596 KB vs. the 500 KB
+    budget — not addressed here since lazy-loading/budget tuning is out of this phase's scope) and `ng test
+    --watch=false --browsers=ChromeHeadless` passes 6/6 (unchanged count — no new spec files added, per the
+    phase's minimal-test-touch instruction).
+  - **Deviation (2026-09-09):** Field set is `fullName`, `email`, `phone`, `message` only — no Company or
+    Position fields, and `email` is optional (not `required`) — this is not a new decision made in this
+    phase, it's carrying forward the Phase 4 deviation (`company`/`position` removed from the backend
+    entirely, `email` made optional) so the client-side contract matches what `CreateSubmissionRequest`
+    actually accepts today rather than the roadmap's original Phase 13 field list/validation table.
 
 ## Admin MVP (Phases 14–15)
 

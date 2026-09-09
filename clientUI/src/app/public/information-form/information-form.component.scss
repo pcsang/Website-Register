@@ -1,0 +1,39 @@
+.form-page {
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.form-card {
+  width: 100%;
+  max-width: 560px;
+}
+
+.full-width {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.actions button {
+  min-width: 120px;
+}
+
+@media (max-width: 599px) {
+  .form-page {
+    padding: 12px 8px;
+  }
+
+  .actions {
+    justify-content: stretch;
+  }
+
+  .actions button {
+    width: 100%;
+  }
+}
