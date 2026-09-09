@@ -1,2 +1,106 @@
-<h1>Admin Dashboard</h1>
-<p>Placeholder page — the dashboard summary UI will be implemented in a later phase.</p>
+<div class="dashboard-page">
+  <h1>Admin Dashboard</h1>
+
+  <section class="summary-cards">
+    @if (summaryLoading) {
+      <div class="summary-loading">
+        <mat-spinner diameter="32"></mat-spinner>
+      </div>
+    } @else if (summary) {
+      <mat-card class="summary-card">
+        <mat-card-subtitle>Total</mat-card-subtitle>
+        <mat-card-title>{{ summary.total }}</mat-card-title>
+      </mat-card>
+      <mat-card class="summary-card">
+        <mat-card-subtitle>New</mat-card-subtitle>
+        <mat-card-title>{{ summary.new }}</mat-card-title>
+      </mat-card>
+      <mat-card class="summary-card">
+        <mat-card-subtitle>In Progress</mat-card-subtitle>
+        <mat-card-title>{{ summary.inProgress }}</mat-card-title>
+      </mat-card>
+      <mat-card class="summary-card">
+        <mat-card-subtitle>Completed</mat-card-subtitle>
+        <mat-card-title>{{ summary.completed }}</mat-card-title>
+      </mat-card>
+      <mat-card class="summary-card">
+        <mat-card-subtitle>Submitted Today</mat-card-subtitle>
+        <mat-card-title>{{ summary.submittedToday }}</mat-card-title>
+      </mat-card>
+    }
+  </section>
+
+  <mat-card class="submissions-card">
+    <div class="filters">
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Search</mat-label>
+        <input matInput [formControl]="searchControl" placeholder="Name, email, or phone" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="status-field">
+        <mat-label>Status</mat-label>
+        <mat-select [formControl]="statusControl">
+          @for (option of statusOptions; track option) {
+            <mat-option [value]="option">{{ option }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <div class="table-container">
+      <table mat-table [dataSource]="submissions" class="submissions-table">
+        <ng-container matColumnDef="fullName">
+          <th mat-header-cell *matHeaderCellDef>Full Name</th>
+          <td mat-cell *matCellDef="let submission">{{ submission.fullName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="email">
+          <th mat-header-cell *matHeaderCellDef>Email</th>
+          <td mat-cell *matCellDef="let submission">{{ submission.email || '—' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="phone">
+          <th mat-header-cell *matHeaderCellDef>Phone</th>
+          <td mat-cell *matCellDef="let submission">{{ submission.phone || '—' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Status</th>
+          <td mat-cell *matCellDef="let submission">{{ submission.status }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="createdAt">
+          <th mat-header-cell *matHeaderCellDef>Created At</th>
+          <td mat-cell *matCellDef="let submission">{{ submission.createdAt | date: 'medium' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="action">
+          <th mat-header-cell *matHeaderCellDef>Action</th>
+          <td mat-cell *matCellDef="let submission">
+            <button mat-stroked-button color="primary" (click)="viewSubmission(submission)">View</button>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+
+      @if (listLoading) {
+        <div class="list-loading">
+          <mat-spinner diameter="32"></mat-spinner>
+        </div>
+      } @else if (submissions.length === 0) {
+        <div class="empty-state">No submissions found.</div>
+      }
+    </div>
+
+    <mat-paginator
+      [length]="totalElements"
+      [pageIndex]="pageIndex"
+      [pageSize]="pageSize"
+      [pageSizeOptions]="[10, 20, 50]"
+      (page)="onPageChange($event)"
+      showFirstLastButtons
+    ></mat-paginator>
+  </mat-card>
+</div>

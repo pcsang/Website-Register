@@ -237,7 +237,43 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
 
 ## Admin MVP (Phases 14–15)
 
-- [ ] **Phase 14 — Admin Dashboard UI**
+- [x] **Phase 14 — Admin Dashboard UI**
+  - Log (2026-09-09): Implemented the `/admin/dashboard` page in the previously-scaffolded
+    `DashboardComponent` (`admin/dashboard/`). Five `mat-card` summary tiles (Total, New, In Progress,
+    Completed, Submitted Today) bound to `SubmissionService.getDashboardSummary()`, loaded independently of
+    the submissions list (separate `summaryLoading` flag and try/catch-equivalent `error` handler, so a
+    failure in one request doesn't block the other, per requirement 11). Submissions rendered via
+    `MatTable` fed by a plain `Submission[]` (`submissions`) rather than a `MatTableDataSource` — since
+    pagination/filtering/sorting are all server-side, `MatTableDataSource`'s built-in client-side
+    pagination/sorting/filtering machinery isn't needed and was deliberately not used to avoid fighting the
+    backend's own paging. `MatPaginator` wired via its `(page)` event (`onPageChange`) to
+    `pageIndex`/`pageSize`, using `PageResponse.totalElements` as `[length]` — every page change calls
+    `listSubmissions()` again against the backend (requirement 4). Search input is a `FormControl` piped
+    through a `Subject<string>` with `debounceTime(300)` + `distinctUntilChanged()` before triggering a
+    reload (requirement 12); the status `mat-select` (`ALL`/`NEW`/`IN_PROGRESS`/`COMPLETED`) reloads
+    immediately on change (no debounce needed for a discrete control), and `ALL` omits the `status` param
+    entirely per `SubmissionService`'s existing contract. Both search and status changes reset `pageIndex`
+    to `0` before reloading, per the phase's explicit requirement. No `MatSort`/client-driven sorting added
+    — the backend's default `createdAt DESC` ordering is left as-is (requirement 7). Loading indicators
+    (`mat-spinner`) shown separately for the summary section and the table region; an explicit empty-state
+    message ("No submissions found.") renders when a loaded page has zero rows. `viewSubmission()` uses
+    `Router.navigate(['/admin/submissions', id])` for the per-row View button. All HTTP calls stay inside
+    the existing `SubmissionService` — the component only calls it, never `HttpClient` directly. Responsive
+    layout: summary cards use `flex-wrap` (stack to full width below 600px), the table sits in an
+    `overflow-x: auto` container with a `min-width` so it scrolls horizontally on narrow viewports instead
+    of collapsing columns, and the search/status filters stack vertically below 600px. Updated
+    `dashboard.component.spec.ts` to add `HttpClientTestingModule`, `NoopAnimationsModule`, and
+    `provideRouter([])` to the `TestBed` configuration, since the component now transitively injects
+    `HttpClient` (via `SubmissionService`) and `Router`, and uses Material components that need the
+    animations module present in tests — same pattern as the Phase 13 fix to
+    `information-form.component.spec.ts`. Verified: `ng build` succeeds (0 errors; same pre-existing
+    bundle-budget warning pattern as Phase 13, now 764.99 kB vs. the 500 kB budget — not addressed here,
+    out of this phase's scope) and `ng test --watch=false --browsers=ChromeHeadless` passes 6/6 (unchanged
+    count — no new spec files added, per the phase's minimal-test-touch instruction).
+  - **Deviation (2026-09-09):** submission table columns are Full Name/Email/Phone/Status/Created
+    At/Action — no Company column — inheriting the Phase 4 deviation (`company` removed from the backend
+    entity/DTOs entirely) rather than a new decision made in this phase; the roadmap's original Phase 14
+    prompt still lists a Company column that no longer has a corresponding field on `Submission`.
 - [ ] **Phase 15 — Submission Detail UI**
 
 ## Secured MVP (Phases 16–17)
