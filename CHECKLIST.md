@@ -188,7 +188,23 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
   - **Deviation:** none from the phase's functional requirements; the folder name `clientUI` (vs. a more
     generic `frontend`) was an explicit instruction from the requester, not a roadmap deviation — the
     roadmap doesn't name the frontend directory.
-- [ ] **Phase 12 — Angular API Models + Service**
+- [x] **Phase 12 — Angular API Models + Service**
+  - Log (2026-09-08): New TypeScript interfaces under `src/app/models/` grouped by concept —
+    `submission.model.ts` (`SubmissionStatus` union type, `Submission`, `CreateSubmissionRequest`,
+    `UpdateSubmissionStatusRequest`), `page-response.model.ts` (`PageResponse<T>`),
+    `dashboard-summary.model.ts` (`DashboardSummary`, with the `new` field kept as the real wire key per
+    the backend's `@JsonProperty("new")` on `DashboardSummaryResponse.newCount` — verified `new` as an
+    unquoted interface property name and `summary.new` property access both compile fine under this
+    project's strict `tsconfig`). New `SubmissionService` (`src/app/core/services/submission.service.ts`,
+    `providedIn: 'root'`, `inject()` style matching the Phase 11 scaffold's convention) wraps all 5
+    endpoints: `createSubmission`, `listSubmissions` (page/size/search/status, `HttpParams.set(...)` only
+    for params actually provided — blank/undefined `search` and `status` are omitted rather than sent
+    empty), `getSubmission`, `updateStatus`, `getDashboardSummary`. API base URL centralized via
+    `environment.apiBaseUrl`, no `localhost` hardcoded in the service. Removed the now-redundant
+    `.gitkeep` placeholders in `models/` and `core/services/`. No component changes (per the phase's
+    explicit scope — UI wiring is Phases 13–15). Verified: `ng build` succeeds; `ng test --watch=false
+    --browsers=ChromeHeadless` — 6/6 pass (unchanged, no new component tests needed here); no `any` used
+    anywhere in the new code.
 - [ ] **Phase 13 — Public User Form**
 
 ## Admin MVP (Phases 14–15)
