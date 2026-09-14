@@ -43,7 +43,7 @@ Backend
 ├── Hibernate
 ├── Jakarta Validation
 ├── Spring Security
-└── Maven
+└── Gradle
 
 Database
 └── PostgreSQL
@@ -152,7 +152,7 @@ Technology stack:
 
 - Java 21
 - Spring Boot 3.x
-- Maven
+- Gradle
 - Spring Web
 - Spring Data JPA
 - Jakarta Validation
@@ -180,7 +180,7 @@ Requirements:
 1. Inspect the existing repository first.
 2. If a Spring Boot project already exists, reuse it instead of creating another project.
 3. Configure Java 21.
-4. Configure required Maven dependencies.
+4. Configure required Gradle dependencies.
 5. Configure PostgreSQL dependencies.
 6. Create application.yml.
 7. Create a simple health endpoint:
@@ -205,7 +205,7 @@ After implementation:
 - Explain the project structure.
 - Show how to start the application.
 - Show how to test GET /api/health.
-- Run Maven build/tests and report the result.
+- Run Gradle build/tests and report the result.
 ```
 
 ---
@@ -231,7 +231,7 @@ Technology:
 
 Requirements:
 
-1. Inspect the existing application.yml and pom.xml first.
+1. Inspect the existing application.yml and build.gradle first.
 2. Configure PostgreSQL datasource.
 3. Configure Spring Data JPA.
 4. Use environment variables for database credentials.
@@ -628,7 +628,7 @@ After implementation:
 - Explain request flow.
 - Show 200 response.
 - Show 404 response.
-- Run Maven tests.
+- Run Gradle tests.
 ```
 
 ---
@@ -1144,7 +1144,7 @@ After implementation:
 - Explain request authentication flow.
 - Show curl examples.
 - Add security tests.
-- Run Maven tests.
+- Run Gradle tests.
 ```
 
 ---
@@ -1243,7 +1243,7 @@ After implementation:
 
 Run:
 
-mvn test
+./gradlew test
 
 Report:
 
@@ -1303,13 +1303,13 @@ Technology:
 
 Java 21
 Spring Boot 3
-Maven
+Gradle
 
 Requirements:
 
 1. Create Dockerfile.
 2. Use multi-stage Docker build.
-3. Build stage: Maven + Java 21.
+3. Build stage: Gradle + Java 21.
 4. Runtime: Java 21 JRE.
 5. Do not run application as root if practical.
 6. Expose application port.
