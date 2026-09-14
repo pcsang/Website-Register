@@ -4,7 +4,7 @@ A small system with a public form for submitting contact/inquiry information and
 reviewing and managing those submissions.
 
 - **Backend**: Java 21, Spring Boot 3, Spring Web, Spring Data JPA, Hibernate, Jakarta Validation,
-  PostgreSQL, Maven, springdoc-openapi (Swagger UI)
+  PostgreSQL, Gradle, springdoc-openapi (Swagger UI)
 - **Frontend**: Angular 19 + Angular Material, in `clientUI/` (see [`clientUI/README.md`](clientUI/README.md)
   for frontend-specific setup)
 
@@ -18,36 +18,36 @@ Backend phases 1–16 of the roadmap are implemented: project setup, PostgreSQL 
 `Submission` entity, the public `POST /api/submissions` endpoint, centralized API exception handling, the
 admin submission list/detail/status-update endpoints, the dashboard summary endpoint, CORS for the Angular
 dev server, and stateless JWT admin authentication (`POST /api/auth/login`, `/api/admin/**` protected).
-Frontend phases 11–15 are also implemented (public form, admin dashboard, submission detail UI).
-**Not yet implemented:** the Angular login page/auth guard (the admin UI doesn't send a token yet, even
-though the API now requires one), Docker, and deployment.
+Frontend phases 11–17 are also implemented (public form, admin dashboard, submission detail UI, admin
+login page with route guard and HTTP interceptor). **Not yet implemented:** Docker and deployment.
 
 ## Prerequisites
 
 - **JDK 21** ([Eclipse Temurin](https://adoptium.net/) or any other distribution)
 - **PostgreSQL 14+**, running locally or via Docker
-- Maven is **not required** — the project includes the Maven Wrapper (`mvnw` / `mvnw.cmd`), which downloads
-  the correct Maven version automatically on first use.
+- Gradle is **not required** — the project includes the Gradle Wrapper (`gradlew` / `gradlew.bat`), which
+  downloads the correct Gradle version automatically on first use (needs network access to
+  `services.gradle.org` once; cached locally after that).
 
-> **No JDK/Maven/PostgreSQL installed system-wide?** This repo may already have a portable toolchain
-> downloaded into `tools/` at the repo root (git-ignored) for exactly this situation. If `tools/jdk-*`,
-> `tools/apache-maven-*`, and `tools/pgsql` exist, use those instead of installing anything — see
+> **No JDK/PostgreSQL installed system-wide?** This repo may already have a portable JDK downloaded into
+> `tools/` at the repo root (git-ignored) for exactly this situation. If `tools/jdk-*` and `tools/pgsql`
+> exist, use those instead of installing anything — see
 > **[Using the portable toolchain](#using-the-portable-toolchain-no-system-install)** below, then skip
 > straight to [step 3](#3-build-and-run).
 
 ## Using the portable toolchain (no system install)
 
-If `tools/jdk-21.0.12.1+1`, `tools/apache-maven-3.9.9`, and `tools/pgsql` exist in the repo, point your
-shell at them before running any `mvn`/`mvnw` command:
+If `tools/jdk-21.0.12.1+1` and `tools/pgsql` exist in the repo, point your shell at the JDK before running
+any `gradlew` command:
 
 ```powershell
 $env:JAVA_HOME = "D:\Home\Website-Register\tools\jdk-21.0.12.1+1"
-$env:Path = "$env:JAVA_HOME\bin;D:\Home\Website-Register\tools\apache-maven-3.9.9\bin;$env:Path"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
 ```
 
 ```bash
 export JAVA_HOME=/path/to/repo/tools/jdk-21.0.12.1+1
-export PATH="$JAVA_HOME/bin:/path/to/repo/tools/apache-maven-3.9.9/bin:$PATH"
+export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
 Then start the bundled PostgreSQL (data dir `tools/pgdata`, superuser `postgres`/`postgres`, database
@@ -59,8 +59,10 @@ tools\pgsql\bin\pg_isready.exe -p 5432   # confirm it's up
 tools\pgsql\bin\pg_ctl.exe -D tools\pgdata stop   # when done
 ```
 
-If a real JDK 21 / Maven / PostgreSQL are already on `PATH` or reachable elsewhere, prefer those and ignore
-this section — the portable toolchain only exists as a fallback for machines without them.
+If a real JDK 21 / PostgreSQL are already on `PATH` or reachable elsewhere, prefer those and ignore this
+section — the portable toolchain only exists as a fallback for machines without them. (`tools/` may also
+have a leftover `apache-maven-*`/`gradle-*` copy from past toolchain bootstrapping — neither is needed
+for day-to-day builds now that `gradlew` is self-sufficient.)
 
 ## 1. Create the database
 
@@ -131,14 +133,12 @@ bundled one) — the app and its tests fail fast otherwise (see [Troubleshooting
 cd backend
 
 # build and run the full test suite
-./mvnw clean verify          # macOS/Linux
-.\mvnw.cmd clean verify      # Windows PowerShell/cmd
-mvn clean verify             # if Maven is already on PATH (e.g. the portable toolchain)
+./gradlew clean build          # macOS/Linux
+.\gradlew.bat clean build      # Windows PowerShell/cmd
 
 # start the application (listens on http://localhost:8080)
-./mvnw spring-boot:run       # macOS/Linux
-.\mvnw.cmd spring-boot:run   # Windows PowerShell/cmd
-mvn spring-boot:run          # if Maven is already on PATH
+./gradlew bootRun              # macOS/Linux
+.\gradlew.bat bootRun          # Windows PowerShell/cmd
 ```
 
 On Windows, the leading `.\` is required — PowerShell doesn't run commands from the current directory
@@ -150,8 +150,8 @@ On first run, the schema (`submissions` table) is created automatically by Hiber
 Alternatively, build a jar and run it directly:
 
 ```bash
-./mvnw clean package -DskipTests   # or: mvn clean package -DskipTests
-java -jar target/backend-0.0.1-SNAPSHOT.jar
+./gradlew clean bootJar -x test   # or: .\gradlew.bat clean bootJar -x test
+java -jar build/libs/backend-0.0.1-SNAPSHOT.jar
 ```
 
 ## 4. Verify it's running
@@ -238,16 +238,16 @@ curl -i -X PATCH http://localhost:8080/api/admin/submissions/1/status \
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/admin/dashboard/summary
 ```
 
-> **Angular admin UI heads-up:** the dashboard/detail pages in `clientUI/` don't send this token yet — that
-> Angular-side login/auth-guard work is Phase 17, not yet implemented — so the admin UI will show errors
-> (401s) against a backend built from this branch until that phase lands.
+The Angular admin UI (`clientUI/`) handles all of this itself now — its login page, HTTP interceptor, and
+route guard send and refresh this token automatically; the curl walkthrough above is only for testing the
+API directly.
 
 ## Running tests
 
 ```bash
 cd backend
-./mvnw test              # unit/integration tests only
-./mvnw clean verify       # tests + build, same as CI would run
+./gradlew test              # unit/integration tests only
+./gradlew clean build       # tests + build, same as CI would run
 ```
 
 Tests that load the full Spring context (`BackendApplicationTests`) need a reachable PostgreSQL database,
@@ -268,8 +268,8 @@ backend/
     mapper/       entity <-> DTO mapping
     enums/        e.g. SubmissionStatus
     exception/    centralized error handling (@RestControllerAdvice)
-    config/       CorsConfig, OpenApiConfig
-    security/     (reserved, for future authentication)
+    config/       CorsConfig, OpenApiConfig, AdminUserSeeder
+    security/     JwtService, JwtAuthenticationFilter, SecurityConfig, REST 401/403 handlers
   src/main/resources/application.yml
 ```
 
@@ -279,9 +279,13 @@ backend/
   Confirm it's running (`pg_isready`) and the port/credentials match your environment variables.
 - **`BackendApplicationTests` fails but other tests pass** — same cause as above; that specific test opens
   a real datasource connection to validate the full application context.
-- **`mvn`/`mvnw` not found, or picks up the wrong Java version** — make sure `JAVA_HOME`/`PATH` point at a
-  JDK **21**; if there's no system-wide install, see
+- **`gradlew`/`gradlew.bat` not found, or picks up the wrong Java version** — make sure `JAVA_HOME`/`PATH`
+  point at a JDK **21**; if there's no system-wide install, see
   [Using the portable toolchain](#using-the-portable-toolchain-no-system-install) above.
+- **First `./gradlew` run fails to download its Gradle distribution** — needs one-time network access to
+  `services.gradle.org`; on a restricted network, see whether `tools/gradle-8.11.1` already exists locally
+  as a fallback (used to re-seed `~/.gradle`'s wrapper cache on this project's own dev machine after a
+  similar issue — see `CHECKLIST.md`'s Gradle-migration log entry for the exact steps if you hit this).
 - **Angular app at `localhost:4200` gets CORS errors calling the API** — confirm `ALLOWED_ORIGINS` (default
   `http://localhost:4200`) matches the origin the frontend is actually served from.
 - **Removed or loosened an entity field but the old column/constraint is still there** —

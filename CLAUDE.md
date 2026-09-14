@@ -47,33 +47,40 @@ the codebase to see what's next (Phase 6 — admin submission list — is the li
 
 All commands assume `cd backend` first (the Spring Boot project lives in `backend/`, not the repo root).
 
-**⚠️ This machine has no system-wide JDK 21, Maven, or PostgreSQL.** A portable toolchain was downloaded
-into `tools/` at the repo root (git-ignored) specifically to work around that. Before running any `mvn`
-command, set these in the same shell:
+**⚠️ This machine has no system-wide JDK 21 or PostgreSQL.** A portable JDK was downloaded into `tools/`
+at the repo root (git-ignored) specifically to work around that. Before running any `gradlew` command, set
+this in the same shell:
 
 ```powershell
 $env:JAVA_HOME = "D:\Home\Website-Register\tools\jdk-21.0.12.1+1"
-$env:Path = "$env:JAVA_HOME\bin;D:\Home\Website-Register\tools\apache-maven-3.9.9\bin;$env:Path"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
 ```
 
-If a later session finds a real JDK 21 / Maven on `PATH` already (e.g. the user installed them), prefer
-those and skip this — it only exists because `winget` was non-functional and the session was unprivileged.
-The project's own `mvnw`/`mvnw.cmd` wrapper works too, but still needs `JAVA_HOME` pointed at a JDK 21.
+If a later session finds a real JDK 21 on `PATH` already (e.g. the user installed one), prefer that and
+skip this. The project's own `gradlew`/`gradlew.bat` wrapper self-bootstraps its pinned Gradle version on
+first run (needs network access to `services.gradle.org` once; cached under `~/.gradle` after that) — no
+separate Gradle install is needed either way.
+
+**Build tool: Gradle, not Maven** (migrated from Maven — `pom.xml`/`mvnw`/`.mvn/` no longer exist).
+`tools/apache-maven-3.9.9` and `tools/gradle-8.11.1` are leftover one-time bootstrap copies (git-ignored);
+`tools/gradle-8.11.1` is kept as a fallback re-seed source in case this sandbox's proxy ever blocks a fresh
+`./gradlew` distribution download again (see the migration's `CHECKLIST.md` log entry for why), Maven's copy
+is no longer needed for anything.
 
 ```powershell
 # build + run all tests
-mvn clean verify
+.\gradlew clean build
 
 # run a single test class
-mvn test "-Dtest=SubmissionServiceTest"
+.\gradlew test --tests "com.register.backend.service.SubmissionServiceTest"
 
 # package only, skip tests
-mvn clean package -DskipTests
+.\gradlew clean bootJar -x test
 
 # run the app (needs PostgreSQL reachable — see below)
-mvn spring-boot:run
+.\gradlew bootRun
 # or, after packaging:
-java -jar target/backend-0.0.1-SNAPSHOT.jar
+java -jar build/libs/backend-0.0.1-SNAPSHOT.jar
 ```
 
 ### Local PostgreSQL

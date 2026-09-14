@@ -502,6 +502,38 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     interceptor's global 401 handling fully covers the "handle HTTP 401" requirement without
     per-component special-casing (see reasoning above).
 
+### Out-of-roadmap work — Backend build tool: Maven → Gradle (post-Phase 17)
+
+- (2026-09-14) Replaced the backend's build tool, Maven → Gradle — a tooling migration only, requested
+  directly, not a numbered roadmap phase. No application code changed; scope was `backend/` only.
+  - **New**: `backend/build.gradle` (Groovy DSL, standard Spring Initializr shape) and
+    `backend/settings.gradle`, porting every dependency from `pom.xml` 1:1 (Maven `compile` →
+    `implementation`, `runtime` → `runtimeOnly`, `test` → `testImplementation`). Plugins:
+    `org.springframework.boot` 3.4.1, `io.spring.dependency-management` 1.1.7, Java toolchain 21.
+    Gradle Wrapper generated at 8.11.1 (`backend/gradlew`, `gradlew.bat`, `gradle/wrapper/`).
+  - **Removed**: `backend/pom.xml`, `mvnw`, `mvnw.cmd`, `.mvn/`, plus stray untracked
+    `target/`/`app.log`/`app_out.log` build debris.
+  - **Modified**: `backend/.gitignore` — Maven entries (`target/`, `.mvn/wrapper` exception) swapped
+    for Gradle equivalents (`.gradle/`, `build/`, `!gradle/wrapper/gradle-wrapper.jar`).
+  - **Command mapping** (also reflected in `CLAUDE.md`/`README.md`): `mvn clean verify` →
+    `./gradlew clean build`; `mvn test "-Dtest=X"` → `./gradlew test --tests "fully.qualified.X"`;
+    `mvn clean package -DskipTests` → `./gradlew clean bootJar -x test`; `mvn spring-boot:run` →
+    `./gradlew bootRun`; jar output moved from `target/` to `build/libs/`.
+  - **Sandbox-specific network note**: this dev machine sits behind a TLS-inspecting proxy that
+    intercepts `github.com`/`objects.githubusercontent.com` (Gradle's distribution download redirects
+    through GitHub Releases) but *not* `services.gradle.org` directly or Maven Central — so a
+    genuinely fresh `./gradlew` bootstrap can fail here specifically on the one-time Gradle
+    distribution download (dependency resolution itself, via `mavenCentral()`, is unaffected). Worked
+    around by downloading the distribution zip via `curl --ssl-no-revoke` and pre-seeding
+    `~/.gradle/wrapper/dists/gradle-8.11.1-bin/<hash>/gradle-8.11.1-bin.zip` directly. A local copy of
+    the Gradle distribution is kept at `tools/gradle-8.11.1` (git-ignored) as a fallback re-seed
+    source if this cache is ever cleared on this machine; `tools/apache-maven-3.9.9` is fully
+    superseded and no longer needed. Not an issue on a machine without this specific proxy.
+  - Verified: `./gradlew clean build` — all 19 backend tests pass, 0 failures. `./gradlew bootJar` +
+    `java -jar build/libs/backend-0.0.1-SNAPSHOT.jar` and `./gradlew bootRun` both confirmed serving
+    `GET /api/health` → 200. `./gradlew dependencies --configuration runtimeClasspath` confirmed no
+    dependency (BCrypt, JJWT ×3, springdoc, Postgres driver) silently dropped vs. the Maven tree.
+
 ## Testing (Phases 18–19)
 
 - [ ] **Phase 18 — Backend Unit Tests** (JUnit 5 + Mockito, Service layer)
