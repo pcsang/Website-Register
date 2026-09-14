@@ -7,25 +7,40 @@
         <mat-spinner diameter="32"></mat-spinner>
       </div>
     } @else if (summary) {
-      <mat-card class="summary-card">
-        <mat-card-subtitle>Total</mat-card-subtitle>
-        <mat-card-title>{{ summary.total }}</mat-card-title>
+      <mat-card class="summary-card summary-card--total">
+        <mat-icon class="summary-card__icon">assessment</mat-icon>
+        <div class="summary-card__body">
+          <mat-card-subtitle>Total</mat-card-subtitle>
+          <mat-card-title>{{ summary.total }}</mat-card-title>
+        </div>
       </mat-card>
-      <mat-card class="summary-card">
-        <mat-card-subtitle>New</mat-card-subtitle>
-        <mat-card-title>{{ summary.new }}</mat-card-title>
+      <mat-card class="summary-card summary-card--new">
+        <mat-icon class="summary-card__icon">fiber_new</mat-icon>
+        <div class="summary-card__body">
+          <mat-card-subtitle>New</mat-card-subtitle>
+          <mat-card-title>{{ summary.new }}</mat-card-title>
+        </div>
       </mat-card>
-      <mat-card class="summary-card">
-        <mat-card-subtitle>In Progress</mat-card-subtitle>
-        <mat-card-title>{{ summary.inProgress }}</mat-card-title>
+      <mat-card class="summary-card summary-card--in-progress">
+        <mat-icon class="summary-card__icon">hourglass_top</mat-icon>
+        <div class="summary-card__body">
+          <mat-card-subtitle>In Progress</mat-card-subtitle>
+          <mat-card-title>{{ summary.inProgress }}</mat-card-title>
+        </div>
       </mat-card>
-      <mat-card class="summary-card">
-        <mat-card-subtitle>Completed</mat-card-subtitle>
-        <mat-card-title>{{ summary.completed }}</mat-card-title>
+      <mat-card class="summary-card summary-card--completed">
+        <mat-icon class="summary-card__icon">task_alt</mat-icon>
+        <div class="summary-card__body">
+          <mat-card-subtitle>Completed</mat-card-subtitle>
+          <mat-card-title>{{ summary.completed }}</mat-card-title>
+        </div>
       </mat-card>
-      <mat-card class="summary-card">
-        <mat-card-subtitle>Submitted Today</mat-card-subtitle>
-        <mat-card-title>{{ summary.submittedToday }}</mat-card-title>
+      <mat-card class="summary-card summary-card--today">
+        <mat-icon class="summary-card__icon">event</mat-icon>
+        <div class="summary-card__body">
+          <mat-card-subtitle>Submitted Today</mat-card-subtitle>
+          <mat-card-title>{{ summary.submittedToday }}</mat-card-title>
+        </div>
       </mat-card>
     }
   </section>
@@ -34,6 +49,7 @@
     <div class="filters">
       <mat-form-field appearance="outline" class="search-field">
         <mat-label>Search</mat-label>
+        <mat-icon matPrefix>search</mat-icon>
         <input matInput [formControl]="searchControl" placeholder="Name, email, or phone" />
       </mat-form-field>
 
@@ -66,7 +82,12 @@
 
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Status</th>
-          <td mat-cell *matCellDef="let submission">{{ submission.status }}</td>
+          <td mat-cell *matCellDef="let submission">
+            <span
+              class="status-badge"
+              [ngClass]="'status-' + submission.status.toLowerCase().replace('_', '-')"
+            >{{ submission.status }}</span>
+          </td>
         </ng-container>
 
         <ng-container matColumnDef="createdAt">

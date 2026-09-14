@@ -1,4 +1,111 @@
 /* You can add global styles to this file, and also import other style files */
+@use '@angular/material' as mat;
 
-html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+// ---------------------------------------------------------------------------
+// Design system — natural / earthy palette inspired by landscaping-business
+// sites: deep forest greens, warm terracotta accents, sand-toned surfaces.
+// ---------------------------------------------------------------------------
+:root {
+  // Brand colors
+  --color-primary: #2f6f4e;
+  --color-primary-dark: #1f4d36;
+  --color-primary-light: #8fbc94;
+  --color-accent: #d98e4a;
+  --color-accent-dark: #b8703a;
+
+  // Surfaces & text
+  --color-bg: #f7f5f0;
+  --color-surface: #ffffff;
+  --color-text: #2b2620;
+  --color-text-muted: #6b6459;
+  --color-border: #e4dfd3;
+
+  // Status badge colors
+  --status-new-bg: #e3edfa;
+  --status-new-text: #2a5c8a;
+  --status-in-progress-bg: #fbebda;
+  --status-in-progress-text: #a85d1f;
+  --status-completed-bg: #e1f0e5;
+  --status-completed-text: #1f6b3f;
+
+  // Shape & elevation
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --shadow-soft: 0 4px 16px rgba(31, 77, 54, 0.1);
+  --shadow-soft-lg: 0 12px 32px rgba(31, 77, 54, 0.14);
+
+  // Typography
+  --font-heading: 'Poppins', 'Helvetica Neue', sans-serif;
+  --font-body: 'Inter', 'Helvetica Neue', sans-serif;
+}
+
+// Custom Material theme — replaces the prebuilt indigo-pink theme so
+// Material components (buttons, form fields, table, paginator, select,
+// snackbar, spinner) pick up the green/earth palette automatically.
+// See: https://material.angular.dev/guide/theming
+html {
+  @include mat.theme(
+    (
+      color: (
+        theme-type: light,
+        primary: mat.$green-palette,
+        tertiary: mat.$orange-palette,
+      ),
+      typography: (
+        plain-family: 'Inter, "Helvetica Neue", sans-serif',
+        brand-family: 'Poppins, "Helvetica Neue", sans-serif',
+      ),
+      density: 0,
+    )
+  );
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  color: var(--color-text);
+}
+
+// Shared status badge styling, reused by the admin dashboard table and the
+// submission detail page.
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  &.status-new {
+    background: var(--status-new-bg);
+    color: var(--status-new-text);
+  }
+
+  &.status-in-progress {
+    background: var(--status-in-progress-bg);
+    color: var(--status-in-progress-text);
+  }
+
+  &.status-completed {
+    background: var(--status-completed-bg);
+    color: var(--status-completed-text);
+  }
+}
