@@ -536,10 +536,40 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
 
 ## Testing (Phases 18–19)
 
-- [ ] **Phase 18 — Backend Unit Tests** (JUnit 5 + Mockito, Service layer)
-  - Note: `BackendApplicationTests`, `HealthControllerTest`, and `GlobalExceptionHandlerTest` already exist
-    from earlier phases, but they don't satisfy this phase's specific scope (mocked-repository unit tests
-    for `SubmissionService`/`DashboardService`) — still open.
+- [x] **Phase 18 — Backend Unit Tests** (JUnit 5 + Mockito, Service layer)
+  - Log (2026-09-14): `DashboardServiceTest.getSummaryAssemblesCountsFromRepository` and four pre-existing
+    `SubmissionServiceTest` methods (`getSubmissionByIdReturnsMappedResponseWhenSubmissionExists`,
+    `getSubmissionByIdThrowsResourceNotFoundExceptionWhenSubmissionDoesNotExist`,
+    `updateStatusUpdatesAndReturnsMappedResponseWhenSubmissionExists`,
+    `updateStatusThrowsResourceNotFoundExceptionWhenSubmissionDoesNotExist`) already covered
+    get/not-found/update-status/dashboard-summary. Added four new `SubmissionServiceTest` methods to close
+    the remaining gap: `createSubmissionSavesAndReturnsMappedResponseWhenRequestIsValid` (happy-path
+    create — mapper→entity, repository save, mapper→response, return value all asserted),
+    `createSubmissionForcesStatusToNewBeforeSaving` (asserts, via an `ArgumentCaptor<Submission>` on the
+    `save()` call, that a pre-set non-NEW status on the mapped entity is overwritten to `NEW` before
+    persisting), `listSubmissionsReturnsMappedPageResponseWhenSearchAndStatusProvided` (search + status
+    both provided; asserts `submissionRepository.search(...)` receives the exact filter values and that
+    the returned `PageResponse`'s `content`/`page`/`size`/`totalElements`/`totalPages` correctly reflect a
+    mocked `PageImpl`), and `listSubmissionsNormalizesBlankSearchToNullBeforeQuerying` (calls with a
+    blank `"   "` search and asserts `submissionRepository.search(null, ...)` is invoked, not
+    `search("   ", ...)`). All new tests follow the file's existing Mockito + AssertJ + Arrange/Act/Assert
+    style, no Spring context started.
+  - **Extension (2026-09-14, by request):** the phase's prompt says "Focus on Service layer," but the user
+    explicitly asked for controller-layer unit tests too, so 4 new `@WebMvcTest` classes were added under
+    `controller/`: `SubmissionControllerTest` (3 tests — create-success 201, blank-fullName 400,
+    invalid-email 400), `AdminSubmissionControllerTest` (6 tests — list with search+status params, list
+    with both omitted asserting `null`s are passed through, get-by-id success, get-by-id 404, update-status
+    success, update-status 400 on missing `status`), `DashboardControllerTest` (1 test — summary passthrough),
+    and `AuthControllerTest` (3 tests — login success, login 401 on bad credentials, login 400 on blank
+    username). Each slice mocks its service via `@MockitoBean` (Spring Boot 3.4's replacement for the
+    deprecated `@MockBean`) and disables the security filter chain (`@AutoConfigureMockMvc(addFilters =
+    false)`, matching the pre-existing `HealthControllerTest` pattern) since authentication/authorization is
+    already covered end to end by `SecurityIntegrationTest` — these tests verify controller
+    request/response mapping and delegation to the service layer only. Verified: `./gradlew test` — full
+    suite (36 tests: `BackendApplicationTests` 1, `AdminSubmissionControllerTest` 6, `AuthControllerTest` 3,
+    `DashboardControllerTest` 1, `HealthControllerTest` 1, `SubmissionControllerTest` 3,
+    `GlobalExceptionHandlerTest` 4, `SecurityIntegrationTest` 8, `DashboardServiceTest` 1,
+    `SubmissionServiceTest` 8) passes, 0 failures, 0 errors.
 - [ ] **Phase 19 — Integration Tests**
 
 ## Deployment (Phases 20–24)
