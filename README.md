@@ -4,17 +4,22 @@ A small system with a public form for submitting contact/inquiry information and
 reviewing and managing those submissions.
 
 - **Backend**: Java 21, Spring Boot 3, Spring Web, Spring Data JPA, Hibernate, Jakarta Validation,
-  PostgreSQL, Maven
-- **Frontend**: Angular (not implemented yet)
+  PostgreSQL, Maven, springdoc-openapi (Swagger UI)
+- **Frontend**: Angular 19 + Angular Material, in `clientUI/` (see [`clientUI/README.md`](clientUI/README.md)
+  for frontend-specific setup)
 
 The full product spec, architecture, and phased build plan live in
 [`java-spring-boot-angular-project-prompts.md`](java-spring-boot-angular-project-prompts.md). This README
-only covers getting the backend running locally.
+only covers getting the **backend** running locally; see `clientUI/README.md` for the Angular app.
 
 ## Current status
 
-Implemented so far: project setup, PostgreSQL configuration, the `Submission` entity, `POST
-/api/submissions`, and centralized API exception handling. No admin API, authentication, or frontend yet.
+Backend phases 1–10 of the roadmap are implemented: project setup, PostgreSQL configuration, the
+`Submission` entity, the public `POST /api/submissions` endpoint, centralized API exception handling, the
+admin submission list/detail/status-update endpoints, the dashboard summary endpoint, and CORS for the
+Angular dev server. Frontend phases 11–15 are also implemented (public form, admin dashboard, submission
+detail UI). **Not yet implemented:** authentication (no login, no JWT, admin endpoints are open), automated
+backend tests beyond the basics, Docker, and deployment.
 
 ## Prerequisites
 
@@ -22,6 +27,39 @@ Implemented so far: project setup, PostgreSQL configuration, the `Submission` en
 - **PostgreSQL 14+**, running locally or via Docker
 - Maven is **not required** — the project includes the Maven Wrapper (`mvnw` / `mvnw.cmd`), which downloads
   the correct Maven version automatically on first use.
+
+> **No JDK/Maven/PostgreSQL installed system-wide?** This repo may already have a portable toolchain
+> downloaded into `tools/` at the repo root (git-ignored) for exactly this situation. If `tools/jdk-*`,
+> `tools/apache-maven-*`, and `tools/pgsql` exist, use those instead of installing anything — see
+> **[Using the portable toolchain](#using-the-portable-toolchain-no-system-install)** below, then skip
+> straight to [step 3](#3-build-and-run).
+
+## Using the portable toolchain (no system install)
+
+If `tools/jdk-21.0.12.1+1`, `tools/apache-maven-3.9.9`, and `tools/pgsql` exist in the repo, point your
+shell at them before running any `mvn`/`mvnw` command:
+
+```powershell
+$env:JAVA_HOME = "D:\Home\Website-Register\tools\jdk-21.0.12.1+1"
+$env:Path = "$env:JAVA_HOME\bin;D:\Home\Website-Register\tools\apache-maven-3.9.9\bin;$env:Path"
+```
+
+```bash
+export JAVA_HOME=/path/to/repo/tools/jdk-21.0.12.1+1
+export PATH="$JAVA_HOME/bin:/path/to/repo/tools/apache-maven-3.9.9/bin:$PATH"
+```
+
+Then start the bundled PostgreSQL (data dir `tools/pgdata`, superuser `postgres`/`postgres`, database
+`information_db`, port `5432` — matching this README's defaults, so step 2 can be skipped):
+
+```powershell
+tools\pgsql\bin\pg_ctl.exe -D tools\pgdata -l tools\pg.log -o "-p 5432" start
+tools\pgsql\bin\pg_isready.exe -p 5432   # confirm it's up
+tools\pgsql\bin\pg_ctl.exe -D tools\pgdata stop   # when done
+```
+
+If a real JDK 21 / Maven / PostgreSQL are already on `PATH` or reachable elsewhere, prefer those and ignore
+this section — the portable toolchain only exists as a fallback for machines without them.
 
 ## 1. Create the database
 
@@ -46,15 +84,17 @@ docker run --name information-db \
 The app reads its datasource config from environment variables, falling back to local-dev defaults if
 unset (see `backend/src/main/resources/application.yml`):
 
-| Variable      | Default                                        | Description         |
-|---------------|-------------------------------------------------|----------------------|
-| `DB_URL`      | `jdbc:postgresql://localhost:5432/information_db` | JDBC connection URL |
-| `DB_USERNAME` | `postgres`                                       | Database user        |
-| `DB_PASSWORD` | `postgres`                                       | Database password    |
+| Variable          | Default                                            | Description                                   |
+|-------------------|-----------------------------------------------------|------------------------------------------------|
+| `DB_URL`          | `jdbc:postgresql://localhost:5432/information_db`  | JDBC connection URL                            |
+| `DB_USERNAME`     | `postgres`                                          | Database user                                  |
+| `DB_PASSWORD`     | `postgres`                                          | Database password                              |
+| `ALLOWED_ORIGINS` | `http://localhost:4200`                             | CORS-allowed origin for the Angular dev server |
 
-If your database matches the defaults above (as set up in step 1), you can skip this step entirely. For
-anything else — a different user/password, a remote database, a production environment — set the three
-variables before running the app:
+If your database matches the defaults above (as set up in step 1) and you're running the Angular dev
+server on its default port, you can skip this step entirely. For anything else — a different
+user/password, a remote database, a different frontend origin, a production environment — set the
+relevant variables before running the app:
 
 ```bash
 export DB_URL=jdbc:postgresql://localhost:5432/information_db
@@ -72,19 +112,26 @@ $env:DB_PASSWORD = "postgres"
 
 ## 3. Build and run
 
-All commands run from the `backend/` directory.
+All commands run from the `backend/` directory. Make sure PostgreSQL is running first (see step 1, or
+[Using the portable toolchain](#using-the-portable-toolchain-no-system-install) if you're using the
+bundled one) — the app and its tests fail fast otherwise (see [Troubleshooting](#troubleshooting)).
 
 ```bash
 cd backend
 
 # build and run the full test suite
-./mvnw clean verify        # macOS/Linux
-mvnw.cmd clean verify       # Windows
+./mvnw clean verify          # macOS/Linux
+.\mvnw.cmd clean verify      # Windows PowerShell/cmd
+mvn clean verify             # if Maven is already on PATH (e.g. the portable toolchain)
 
 # start the application (listens on http://localhost:8080)
-./mvnw spring-boot:run      # macOS/Linux
-mvnw.cmd spring-boot:run    # Windows
+./mvnw spring-boot:run       # macOS/Linux
+.\mvnw.cmd spring-boot:run   # Windows PowerShell/cmd
+mvn spring-boot:run          # if Maven is already on PATH
 ```
+
+On Windows, the leading `.\` is required — PowerShell doesn't run commands from the current directory
+unless you spell out the relative path, even though the file is right there.
 
 On first run, the schema (`submissions` table) is created automatically by Hibernate
 (`spring.jpa.hibernate.ddl-auto: update`) — no manual migration step needed.
@@ -92,7 +139,7 @@ On first run, the schema (`submissions` table) is created automatically by Hiber
 Alternatively, build a jar and run it directly:
 
 ```bash
-./mvnw clean package -DskipTests
+./mvnw clean package -DskipTests   # or: mvn clean package -DskipTests
 java -jar target/backend-0.0.1-SNAPSHOT.jar
 ```
 
@@ -106,9 +153,12 @@ curl http://localhost:8080/actuator/health
 # {"status":"UP"}   (reflects real database connectivity)
 ```
 
+Interactive API docs (Swagger UI) are served at <http://localhost:8080/swagger-ui.html>, generated
+automatically from the controllers/DTOs — a quick way to browse or try every endpoint without `curl`.
+
 ## Trying the API
 
-**Submit a form entry:**
+**Submit a form entry (public):**
 
 ```bash
 curl -i -X POST http://localhost:8080/api/submissions \
@@ -142,6 +192,24 @@ curl -i -X POST http://localhost:8080/api/submissions \
 }
 ```
 
+**Admin endpoints** (no authentication yet — open to anyone who can reach the server):
+
+```bash
+# paginated, searchable, filterable list (page/size/sort are standard Spring Pageable params)
+curl "http://localhost:8080/api/admin/submissions?search=nguyen&status=NEW&page=0&size=20"
+
+# single submission by ID
+curl http://localhost:8080/api/admin/submissions/1
+
+# update a submission's status
+curl -i -X PATCH http://localhost:8080/api/admin/submissions/1/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "IN_PROGRESS"}'
+
+# dashboard summary counts (total, per-status, submitted today)
+curl http://localhost:8080/api/admin/dashboard/summary
+```
+
 ## Running tests
 
 ```bash
@@ -168,7 +236,7 @@ backend/
     mapper/       entity <-> DTO mapping
     enums/        e.g. SubmissionStatus
     exception/    centralized error handling (@RestControllerAdvice)
-    config/       (reserved)
+    config/       CorsConfig, OpenApiConfig
     security/     (reserved, for future authentication)
   src/main/resources/application.yml
 ```
@@ -179,3 +247,11 @@ backend/
   Confirm it's running (`pg_isready`) and the port/credentials match your environment variables.
 - **`BackendApplicationTests` fails but other tests pass** — same cause as above; that specific test opens
   a real datasource connection to validate the full application context.
+- **`mvn`/`mvnw` not found, or picks up the wrong Java version** — make sure `JAVA_HOME`/`PATH` point at a
+  JDK **21**; if there's no system-wide install, see
+  [Using the portable toolchain](#using-the-portable-toolchain-no-system-install) above.
+- **Angular app at `localhost:4200` gets CORS errors calling the API** — confirm `ALLOWED_ORIGINS` (default
+  `http://localhost:4200`) matches the origin the frontend is actually served from.
+- **Removed or loosened an entity field but the old column/constraint is still there** —
+  `ddl-auto: update` only adds columns/tables, it never drops or relaxes them. Reconcile manually via
+  `psql`, or drop the table and let Hibernate recreate it if there's no data worth keeping.
