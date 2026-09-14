@@ -20,6 +20,24 @@
       >
         Admin Dashboard
       </a>
+      @if (authService.isAuthenticated()) {
+        <span class="site-nav__user">{{ authService.username() }}</span>
+        <button
+          class="site-nav__link site-nav__link--button"
+          type="button"
+          (click)="onLogout()"
+        >
+          Logout
+        </button>
+      } @else {
+        <a
+          class="site-nav__link"
+          routerLink="/admin/login"
+          routerLinkActive="site-nav__link--active"
+        >
+          Login
+        </a>
+      }
     </nav>
   </div>
 </header>

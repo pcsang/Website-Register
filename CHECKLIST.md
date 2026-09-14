@@ -431,7 +431,76 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
   - **Seeded dev-only admin credentials** (from `application.yml`'s defaults, override via
     `ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars in any real deployment): username `admin`, password
     `dev-only-ChangeMe123!`.
-- [ ] **Phase 17 — Angular Authentication**
+- [x] **Phase 17 — Angular Authentication**
+  - Log (2026-09-14): New `models/auth.model.ts` (`LoginRequest`/`LoginResponse`, mirroring the
+    backend's `LoginRequest`/`LoginResponse` records exactly). New `core/services/auth.service.ts`
+    (`AuthService`, `providedIn: 'root'`) — `login()` posts to `${apiBaseUrl}/api/auth/login` and,
+    on success, persists `{token, username, role}` to `localStorage` under the key `auth`;
+    `logout()` clears both the in-memory signal and `localStorage`; `getToken()` reads the current
+    token; `isAuthenticated`/`username` are `computed()` signals derived from a private
+    `signal<StoredAuth | null>` seeded on construction from `localStorage` (so a page reload stays
+    logged in). New `core/interceptors/auth.interceptor.ts` (`authInterceptor`, functional
+    `HttpInterceptorFn`, registered via `provideHttpClient(withInterceptors([authInterceptor]))` in
+    `app.config.ts`) — attaches `Authorization: Bearer <token>` only to requests whose URL starts
+    with `${environment.apiBaseUrl}/api/admin/` (matches `SubmissionService`'s
+    `adminSubmissionsUrl`/`dashboardSummaryUrl`, leaves `/api/submissions`, `/api/health`, and
+    `/api/auth/login` untouched by construction, not a denylist), and doubles as the app's global
+    401 handler for admin requests (`catchError` → on a 401 from an admin URL, calls
+    `authService.logout()` and `router.navigate(['/admin/login'])`, then rethrows). New
+    `core/guards/auth.guard.ts` (`authGuard`, functional `CanActivateFn`) — returns `true` if
+    `authService.isAuthenticated()`, otherwise a `UrlTree` to `/admin/login`; applied via
+    `canActivate: [authGuard]` on both `admin/dashboard` and `admin/submissions/:id` in
+    `app.routes.ts`, plus a new public `admin/login` route rendering the new `LoginComponent`
+    (`admin/login/`, matching the `admin/dashboard`/`admin/submission-detail` folder convention).
+    `LoginComponent` follows `InformationFormComponent`'s exact conventions (`FormBuilder` reactive
+    form, required-only `username`/`password` validators since the backend only enforces
+    `@NotBlank`, `submitting` guard flag, Material card/form-field/spinner/snackbar, same
+    `extractErrorMessage` pattern) and navigates to `/admin/dashboard` on success. Nav header
+    (`app.component.html`/`.ts`/`.scss`) now reads `AuthService.isAuthenticated()`/`.username()`
+    reactively (no page reload) to show a "Login" link when logged out or the current username +
+    a "Logout" button when logged in; `onLogout()` calls `authService.logout()` then navigates to
+    `/admin/login`. Removed the now-empty `.gitkeep` placeholders in `core/guards/` and
+    `core/interceptors/` (same cleanup pattern as Phase 12). `DashboardComponent`/
+    `SubmissionDetailComponent` needed **no changes** — their existing `extractErrorMessage`
+    helpers already handle any error shape generically, and a 401 specifically is fully intercepted
+    and redirected before those components' `error` callbacks even see it in the normal case (a
+    401 body still flows through to them too, but by then the redirect is already in flight).
+    `app.component.spec.ts` gained `HttpClientTestingModule` (now required since `AppComponent`
+    injects `AuthService`, which injects `HttpClient`); `dashboard.component.spec.ts`/
+    `submission-detail.component.spec.ts` needed no changes (already had
+    `HttpClientTestingModule`/`provideRouter([])`, and the guard isn't exercised when a spec
+    constructs the component directly rather than navigating a route). New
+    `login.component.spec.ts` added (same minimal "should create" pattern as the other two admin
+    specs). Verified: `npm run build` succeeds (0 errors; bundle-budget warning grew slightly to
+    729.16 kB vs. the 500 kB budget from the new login page's Material imports — not addressed
+    here, out of scope) and `npm test -- --watch=false --browsers=ChromeHeadless` passes 7/7 (6
+    existing + 1 new `LoginComponent` spec).
+  - **Storage strategy — `localStorage` (chosen over `sessionStorage`/in-memory-only):** the JWT
+    and username/role are stored as JSON in `localStorage` (not a cookie — the backend returns the
+    token as a JSON body field, so an `httpOnly` cookie approach isn't available without backend
+    changes, which are out of scope for this phase). **Tradeoff, as required by the roadmap
+    prompt:** `localStorage` (like `sessionStorage`) is readable by any JavaScript running on the
+    page's origin, so a successful XSS attack against this Angular app could exfiltrate the token
+    — this is strictly worse than an `httpOnly` cookie, which JS can never read at all, at the cost
+    of needing backend `Set-Cookie`/CSRF-token plumbing this phase doesn't add. Given the token's
+    short lifetime (1h, per Phase 16's `app.jwt.expiration-ms` default) and that this is a small
+    internal admin tool with no third-party scripts, no rendering of raw/unescaped HTML from
+    user-submitted data (Angular's template binding auto-escapes all interpolated submission
+    fields — no `innerHTML` used anywhere in the app), and no other known XSS vector, the residual
+    risk was judged acceptable. `localStorage` was picked over `sessionStorage` specifically for
+    the UX of surviving a page reload/new tab without forcing a re-login (an admin dashboard is
+    plausibly refreshed or reopened during a session); the tradeoff is that a token left in
+    `localStorage` also survives browser restarts until it expires or `logout()` runs, whereas
+    `sessionStorage` would auto-clear when the tab closes — a marginally smaller exposure window
+    for the same XSS risk profile, deemed not worth the reduced convenience for a small
+    internal-only tool. An in-memory-only signal (cleared on every reload) was rejected as
+    needlessly inconvenient for an admin who reloads the page — same XSS exposure while a session
+    is active anyway, since the token still has to live in JS-readable memory to be attached to
+    requests.
+  - **Deviation:** none — implemented per the roadmap's Phase 17 prompt and this task's brief;
+    `DashboardComponent`/`SubmissionDetailComponent` were deliberately left unmodified since the
+    interceptor's global 401 handling fully covers the "handle HTTP 401" requirement without
+    per-component special-casing (see reasoning above).
 
 ## Testing (Phases 18–19)
 
