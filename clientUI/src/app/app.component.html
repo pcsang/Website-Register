@@ -1,1 +1,29 @@
-<router-outlet></router-outlet>
+<header class="site-header">
+  <div class="site-header__inner">
+    <a class="brand" routerLink="/form">
+      <mat-icon class="brand__icon">eco</mat-icon>
+      <span class="brand__name">GreenField Register</span>
+    </a>
+
+    <nav class="site-nav">
+      <a
+        class="site-nav__link"
+        routerLink="/form"
+        routerLinkActive="site-nav__link--active"
+      >
+        Form
+      </a>
+      <a
+        class="site-nav__link"
+        routerLink="/admin/dashboard"
+        routerLinkActive="site-nav__link--active"
+      >
+        Admin Dashboard
+      </a>
+    </nav>
+  </div>
+</header>
+
+<main class="site-main">
+  <router-outlet></router-outlet>
+</main>

@@ -315,6 +315,56 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     removed from the backend entity/DTOs entirely), not a new decision made in this phase; the roadmap's
     original Phase 15 prompt still lists Company/Position among the fields to display.
 
+### Out-of-roadmap work — Visual restyle (post-Phase 15)
+
+- (2026-09-14) Restyled the three existing pages (`/form`, `/admin/dashboard`,
+  `/admin/submissions/:id`) and added a shared site header — a styling-only pass, not a numbered
+  roadmap phase, requested directly (landscaping-business-inspired earthy/green design language). No
+  component TypeScript logic, service calls, routing, or validators changed — only templates
+  (`.html`), styles (`.scss`), `index.html`, and `angular.json`.
+  - **Design system**: new CSS custom properties in `src/styles.scss` (`:root`) — primary
+    `#2f6f4e` / dark `#1f4d36` / light tint `#8fbc94`, accent terracotta `#d98e4a` / dark
+    `#b8703a`, sand background `#f7f5f0`, white surfaces, warm-dark text `#2b2620`, muted text
+    `#6b6459`, plus shared `.status-badge` pill styles (`status-new`/`status-in-progress`/
+    `status-completed`) reused by both the dashboard table and the detail page.
+  - **Typography**: Poppins (600/700, headings) and Inter (400/500/600, body) loaded via Google
+    Fonts `<link>` tags in `src/index.html` (replacing the bare Roboto link), wired as the
+    Material theme's `brand-family`/`plain-family` in `styles.scss`.
+  - **Material theme**: replaced the `@angular/material/prebuilt-themes/indigo-pink.css` import
+    (removed from both the `build` and `test` `styles` arrays in `angular.json`) with a custom
+    M3 theme via `@include mat.theme((color: (primary: mat.$green-palette, tertiary:
+    mat.$orange-palette, theme-type: light), typography: (...), density: 0))` on `html` in
+    `styles.scss` — the exact pattern Angular Material 19's own `ng add` "custom theme" schematic
+    generates (checked `node_modules/@angular/material/schematics/ng-add/theming/create-custom-theme.js`
+    directly rather than assuming M2 `mat.define-light-theme` syntax, since that's deprecated in
+    this version). No `mat.core()`/`mat.all-component-themes()` needed — v19 components already
+    read the `--mat-sys-*` system tokens this mixin emits. Verified in the built CSS:
+    `--mat-sys-primary: #026e00` (green), `--mat-sys-tertiary: #964900` (terracotta-brown), and
+    `Poppins`/`Inter` present in the typescale custom properties.
+  - **Shared header**: new nav bar in `app.component.html`/`.scss` (`AppComponent` gained
+    `RouterLink`/`RouterLinkActive`/`MatIconModule`/`MatToolbarModule` imports only — no other TS
+    logic) — left brand (leaf `mat-icon` + text), right nav links to `/form` and
+    `/admin/dashboard` with `routerLinkActive` highlighting, collapsing to a stacked layout below
+    600px. `app.component.spec.ts` updated to provide `provideRouter([])` (now required since the
+    template uses `routerLink`).
+  - **Per-page restyle**: public form gained a gradient hero band above the existing white
+    rounded form card (all fields/validators/submit-spinner behavior untouched); admin dashboard's
+    5 stat cards gained a left accent bar + circular icon per stat, the submissions table sits in
+    a rounded bordered container with row hover, and the status column renders the shared
+    `.status-badge` pill (computed via a template expression,
+    `'status-' + submission.status.toLowerCase().replace('_','-')` — no new TS method); submission
+    detail got the same status badge plus a Material icon per field label in the label/value grid,
+    all three load states (loading/not-found/error) restyled with the site's card/shadow language.
+    `DashboardComponent`/`SubmissionDetailComponent` each gained a `MatIconModule` import (for
+    `<mat-icon>`) — no other TS changes.
+  - Verified: `npm run build` succeeds (0 errors; the pre-existing bundle-budget warning grew
+    slightly, 723.31 kB vs. the 500 kB budget, from pulling in `MatIconModule`/`MatToolbarModule`
+    — not addressed here, budget tuning is out of scope) and `npm test -- --watch=false
+    --browsers=ChromeHeadless` passes 6/6 unchanged (only `app.component.spec.ts` needed a fix, for
+    the new `routerLink` usage — no spec asserted on markup text that changed). Visual/browser
+    rendering was not screenshotted from this environment; only build output and generated CSS
+    were inspected to confirm the theme/fonts/tokens compiled as intended.
+
 ## Secured MVP (Phases 16–17)
 
 - [ ] **Phase 16 — Spring Security (JWT Admin Auth)**

@@ -7,36 +7,43 @@
     </div>
   } @else if (notFound) {
     <mat-card class="state-card">
+      <mat-icon class="state-card__icon">search_off</mat-icon>
       <p>Submission not found.</p>
       <button mat-stroked-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
     </mat-card>
   } @else if (loadError) {
     <mat-card class="state-card">
+      <mat-icon class="state-card__icon">error_outline</mat-icon>
       <p>Something went wrong loading this submission.</p>
       <button mat-stroked-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
     </mat-card>
   } @else if (submission) {
     <mat-card class="detail-card">
       <div class="detail-grid">
-        <div class="detail-label">Full Name</div>
+        <div class="detail-label"><mat-icon>person</mat-icon>Full Name</div>
         <div class="detail-value">{{ submission.fullName }}</div>
 
-        <div class="detail-label">Email</div>
+        <div class="detail-label"><mat-icon>email</mat-icon>Email</div>
         <div class="detail-value">{{ submission.email || '—' }}</div>
 
-        <div class="detail-label">Phone</div>
+        <div class="detail-label"><mat-icon>phone</mat-icon>Phone</div>
         <div class="detail-value">{{ submission.phone || '—' }}</div>
 
-        <div class="detail-label">Message</div>
+        <div class="detail-label"><mat-icon>chat_bubble_outline</mat-icon>Message</div>
         <div class="detail-value">{{ submission.message || '—' }}</div>
 
-        <div class="detail-label">Status</div>
-        <div class="detail-value">{{ submission.status }}</div>
+        <div class="detail-label"><mat-icon>flag</mat-icon>Status</div>
+        <div class="detail-value">
+          <span
+            class="status-badge"
+            [ngClass]="'status-' + submission.status.toLowerCase().replace('_', '-')"
+          >{{ submission.status }}</span>
+        </div>
 
-        <div class="detail-label">Created At</div>
+        <div class="detail-label"><mat-icon>event</mat-icon>Created At</div>
         <div class="detail-value">{{ submission.createdAt | date: 'medium' }}</div>
 
-        <div class="detail-label">Updated At</div>
+        <div class="detail-label"><mat-icon>update</mat-icon>Updated At</div>
         <div class="detail-value">{{ submission.updatedAt | date: 'medium' }}</div>
       </div>
 
