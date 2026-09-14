@@ -1,0 +1,38 @@
+<div class="login-page">
+  <mat-card class="login-card">
+    <mat-card-header>
+      <mat-card-title>Admin Login</mat-card-title>
+      <mat-card-subtitle>Sign in to manage submissions.</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Username</mat-label>
+          <input matInput formControlName="username" required autocomplete="username" />
+          @if (form.controls.username.hasError('required')) {
+            <mat-error>Username is required.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Password</mat-label>
+          <input matInput type="password" formControlName="password" required autocomplete="current-password" />
+          @if (form.controls.password.hasError('required')) {
+            <mat-error>Password is required.</mat-error>
+          }
+        </mat-form-field>
+
+        <div class="actions">
+          <button mat-raised-button color="primary" type="submit" class="submit-button" [disabled]="submitting">
+            @if (submitting) {
+              <mat-progress-spinner diameter="20" mode="indeterminate"></mat-progress-spinner>
+            } @else {
+              Login
+            }
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>
