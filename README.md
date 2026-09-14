@@ -14,12 +14,13 @@ only covers getting the **backend** running locally; see `clientUI/README.md` fo
 
 ## Current status
 
-Backend phases 1–10 of the roadmap are implemented: project setup, PostgreSQL configuration, the
+Backend phases 1–16 of the roadmap are implemented: project setup, PostgreSQL configuration, the
 `Submission` entity, the public `POST /api/submissions` endpoint, centralized API exception handling, the
-admin submission list/detail/status-update endpoints, the dashboard summary endpoint, and CORS for the
-Angular dev server. Frontend phases 11–15 are also implemented (public form, admin dashboard, submission
-detail UI). **Not yet implemented:** authentication (no login, no JWT, admin endpoints are open), automated
-backend tests beyond the basics, Docker, and deployment.
+admin submission list/detail/status-update endpoints, the dashboard summary endpoint, CORS for the Angular
+dev server, and stateless JWT admin authentication (`POST /api/auth/login`, `/api/admin/**` protected).
+Frontend phases 11–15 are also implemented (public form, admin dashboard, submission detail UI).
+**Not yet implemented:** the Angular login page/auth guard (the admin UI doesn't send a token yet, even
+though the API now requires one), Docker, and deployment.
 
 ## Prerequisites
 
@@ -84,12 +85,22 @@ docker run --name information-db \
 The app reads its datasource config from environment variables, falling back to local-dev defaults if
 unset (see `backend/src/main/resources/application.yml`):
 
-| Variable          | Default                                            | Description                                   |
-|-------------------|-----------------------------------------------------|------------------------------------------------|
-| `DB_URL`          | `jdbc:postgresql://localhost:5432/information_db`  | JDBC connection URL                            |
-| `DB_USERNAME`     | `postgres`                                          | Database user                                  |
-| `DB_PASSWORD`     | `postgres`                                          | Database password                              |
-| `ALLOWED_ORIGINS` | `http://localhost:4200`                             | CORS-allowed origin for the Angular dev server |
+| Variable            | Default                                            | Description                                        |
+|---------------------|-----------------------------------------------------|------------------------------------------------------|
+| `DB_URL`            | `jdbc:postgresql://localhost:5432/information_db`  | JDBC connection URL                                |
+| `DB_USERNAME`       | `postgres`                                          | Database user                                      |
+| `DB_PASSWORD`       | `postgres`                                          | Database password                                  |
+| `ALLOWED_ORIGINS`   | `http://localhost:4200`                             | CORS-allowed origin for the Angular dev server     |
+| `JWT_SECRET`        | a dev-only placeholder — **not** production-safe   | HMAC signing secret for admin JWTs (32+ bytes)     |
+| `JWT_EXPIRATION_MS` | `3600000` (1 hour)                                  | How long an issued admin JWT stays valid           |
+| `ADMIN_USERNAME`    | `admin`                                             | Seeded admin username (see note below)             |
+| `ADMIN_PASSWORD`    | a dev-only placeholder — **not** production-safe   | Seeded admin password, BCrypt-hashed before storage |
+
+**About the seeded admin account:** there's no signup endpoint (this is an internal tool). On first
+startup, if the `admin_users` table is empty, the app creates exactly one admin account from
+`ADMIN_USERNAME`/`ADMIN_PASSWORD` (hashed with BCrypt) — safe to leave running, it never overwrites or
+duplicates an existing account. **Always set real values for `JWT_SECRET`, `ADMIN_USERNAME`, and
+`ADMIN_PASSWORD` outside local development** — the defaults in `application.yml` are placeholders.
 
 If your database matches the defaults above (as set up in step 1) and you're running the Angular dev
 server on its default port, you can skip this step entirely. For anything else — a different
@@ -192,23 +203,44 @@ curl -i -X POST http://localhost:8080/api/submissions \
 }
 ```
 
-**Admin endpoints** (no authentication yet — open to anyone who can reach the server):
+**Admin login:**
 
 ```bash
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "<ADMIN_PASSWORD value>"}'
+```
+
+Expected: `200 OK` with `{"token": "...", "username": "admin", "role": "ROLE_ADMIN"}`. Wrong credentials
+return `401` with the standard error shape (same message either way, so the API never reveals whether a
+username exists).
+
+**Admin endpoints** — everything under `/api/admin/**` now requires that token as a `Bearer` header; a
+missing, invalid, or expired token gets `401`:
+
+```bash
+TOKEN="<paste the token from the login response>"
+
 # paginated, searchable, filterable list (page/size/sort are standard Spring Pageable params)
-curl "http://localhost:8080/api/admin/submissions?search=nguyen&status=NEW&page=0&size=20"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/admin/submissions?search=nguyen&status=NEW&page=0&size=20"
 
 # single submission by ID
-curl http://localhost:8080/api/admin/submissions/1
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/admin/submissions/1
 
 # update a submission's status
 curl -i -X PATCH http://localhost:8080/api/admin/submissions/1/status \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"status": "IN_PROGRESS"}'
 
 # dashboard summary counts (total, per-status, submitted today)
-curl http://localhost:8080/api/admin/dashboard/summary
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/admin/dashboard/summary
 ```
+
+> **Angular admin UI heads-up:** the dashboard/detail pages in `clientUI/` don't send this token yet — that
+> Angular-side login/auth-guard work is Phase 17, not yet implemented — so the admin UI will show errors
+> (401s) against a backend built from this branch until that phase lands.
 
 ## Running tests
 

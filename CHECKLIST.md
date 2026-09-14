@@ -367,7 +367,70 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
 
 ## Secured MVP (Phases 16–17)
 
-- [ ] **Phase 16 — Spring Security (JWT Admin Auth)**
+- [x] **Phase 16 — Spring Security (JWT Admin Auth)**
+  - Log (2026-09-14): Added `spring-boot-starter-security` and `io.jsonwebtoken:jjwt-api/jjwt-impl/jjwt-jackson:0.12.6` to `pom.xml`. New `AdminUser` entity (`id`, `username` unique, `passwordHash`, `role`,
+    `createdAt`, `@PrePersist`-managed timestamp, matching `Submission`'s plain-JPA/no-Lombok style) +
+    `AdminUserRepository` (`findByUsername`). New `security/` package: `JwtService` (jjwt 0.12.x encode/decode,
+    HS256, secret + expiration bound from `app.jwt.secret`/`app.jwt.expiration-ms` ⇐
+    `JWT_SECRET`/`JWT_EXPIRATION_MS` env vars, 1h default), `JwtAuthenticationFilter`
+    (`OncePerRequestFilter`, reads `Authorization: Bearer`, sets the `SecurityContext` straight from the
+    token's `sub`/`role` claims — no DB lookup per request, so a valid, unexpired signature is trusted as-is;
+    a missing/invalid/expired token just leaves the request unauthenticated rather than throwing),
+    `RestAuthenticationEntryPoint`/`RestAccessDeniedHandler` (write the existing `ErrorResponse` JSON shape
+    directly for 401/403, since `@RestControllerAdvice` never sees exceptions thrown inside the security
+    filter chain), and `SecurityConfig` (`@EnableWebSecurity`, stateless `SecurityFilterChain`, CSRF disabled,
+    `.cors(Customizer.withDefaults())` — verified this correctly reuses the existing `CorsConfig`
+    `WebMvcConfigurer` registration via Spring Security's `HandlerMappingIntrospector` auto-detection, no
+    separate `CorsConfigurationSource` bean needed — `OPTIONS` preflight permitted globally,
+    `/api/admin/**` requires `hasRole("ADMIN")`, everything else `permitAll()`). New `AuthService`
+    (`@Transactional(readOnly = true)`, looks up `AdminUserRepository.findByUsername`, verifies via
+    `BCryptPasswordEncoder.matches`, throws new `InvalidCredentialsException` — same message for
+    unknown-username and wrong-password, to avoid leaking which one failed — on any mismatch, otherwise
+    issues a JWT via `JwtService`) + `AuthController` (`POST /api/auth/login`) + `LoginRequest`/`LoginResponse`
+    records. `GlobalExceptionHandler` gained an `InvalidCredentialsException` → 401 case, same pattern as the
+    existing `ResourceNotFoundException` → 404 one. New `config/AdminUserSeeder` (`ApplicationRunner`,
+    idempotent — only inserts when `adminUserRepository.count() == 0` — seeds `app.admin.username`/
+    `app.admin.password` ⇐ `ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars, hashed via the same
+    `BCryptPasswordEncoder` bean used at login). `application.yml` gained `app.jwt.secret`/
+    `app.jwt.expiration-ms`/`app.admin.username`/`app.admin.password`, all following the existing
+    env-var-with-dev-only-default pattern.
+  - **Design decision — no `UserDetailsService`/`AuthenticationManager` bean:** login is handled directly
+    in `AuthService` against `AdminUserRepository`, and per-request auth is handled entirely from the JWT's
+    own signed claims in `JwtAuthenticationFilter`. This is simpler for a single-role admin-only app, avoids
+    Spring Boot's auto-configured default in-memory user (and its generated-password startup log line) that
+    otherwise appears once `spring-boot-starter-security` is on the classpath with no auth mechanism
+    configured, and sidesteps the `@WebMvcTest`-pulls-in-a-JPA-repository failure mode the phase's prompt
+    flagged as a risk — the filter chain's beans (`JwtService`, the two REST handlers) have no DB dependency
+    at all.
+  - **`@WebMvcTest` gotcha encountered exactly as warned:** `@WebMvcTest` does **not** automatically include
+    arbitrary `@Configuration` classes like `SecurityConfig` in the slice context, so `HealthControllerTest`
+    was getting Spring Boot's *default* security auto-configuration (require-auth-for-everything) instead of
+    the app's real, more permissive `SecurityConfig` — a false `401` on `GET /api/health` inside the slice
+    test only. Fixed with `@AutoConfigureMockMvc(addFilters = false)` on that test (it isn't testing security
+    behavior), per the "fix it in the test, don't weaken production config" instruction;
+    `/api/health`'s genuine public-with-no-token behavior is verified for real in `SecurityIntegrationTest`
+    instead.
+  - **Tests:** new `security/SecurityIntegrationTest` — a full `@SpringBootTest` +`@AutoConfigureMockMvc`
+    (real filter chain, real seeded admin user, real Postgres) rather than mocked slices, since these
+    specifically need to exercise the whole pipeline (`AdminUserSeeder` → real login → real signed token →
+    real `JwtAuthenticationFilter`) rather than any one collaborator in isolation. Covers: `/api/health`
+    public with no token; login success (200 + token/username/role); login failure for both a wrong password
+    and an unknown username (401, same generic message either way); an admin endpoint with no token (401),
+    a garbage token (401), an expired token (401, generated in-test with the same configured secret but a
+    past expiration), and a valid token (200) — 8 tests total, all passing.
+  - **Manual end-to-end verification** (packaged jar run against the live local Postgres): `GET
+    /api/health` with no token → 200; `GET /api/admin/dashboard/summary` with no token → 401
+    `{"message":"Authentication required"}`; `POST /api/auth/login` with a wrong password → 401
+    `{"message":"Invalid username or password"}`; login with the correct seeded credentials → 200 + JWT;
+    the same admin endpoint with `Authorization: Bearer <token>` → 200 with real summary data; `POST
+    /api/submissions` with no token → 201 (still public, unaffected); a garbage bearer token → 401; CORS
+    `OPTIONS` preflight and an authenticated `GET` from `Origin: http://localhost:4200` on the admin
+    endpoint both still return the expected `Access-Control-Allow-Origin` header, confirming the security
+    filter chain didn't regress Phase 10's CORS behavior. Verified via `mvn clean verify` (19/19 tests
+    pass) and the curl sequence above; the test submission and its row were cleaned up afterward.
+  - **Seeded dev-only admin credentials** (from `application.yml`'s defaults, override via
+    `ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars in any real deployment): username `admin`, password
+    `dev-only-ChangeMe123!`.
 - [ ] **Phase 17 — Angular Authentication**
 
 ## Testing (Phases 18–19)
