@@ -1,5 +1,7 @@
 package com.register.backend.service;
 
+import com.register.backend.dto.request.CreateSubmissionRequest;
+import com.register.backend.dto.response.PageResponse;
 import com.register.backend.dto.response.SubmissionResponse;
 import com.register.backend.entity.Submission;
 import com.register.backend.enums.SubmissionStatus;
@@ -8,15 +10,24 @@ import com.register.backend.mapper.SubmissionMapper;
 import com.register.backend.repository.SubmissionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -32,6 +43,105 @@ class SubmissionServiceTest {
 
     @InjectMocks
     private SubmissionService submissionService;
+
+    @Test
+    void createSubmissionSavesAndReturnsMappedResponseWhenRequestIsValid() {
+        CreateSubmissionRequest request = new CreateSubmissionRequest(
+                "Jane Doe", "jane@example.com", "0123456789", "Hello");
+
+        Submission mappedEntity = new Submission();
+        mappedEntity.setFullName("Jane Doe");
+        mappedEntity.setEmail("jane@example.com");
+        mappedEntity.setPhone("0123456789");
+        mappedEntity.setMessage("Hello");
+
+        Submission savedSubmission = new Submission();
+        savedSubmission.setId(1L);
+        savedSubmission.setFullName("Jane Doe");
+        savedSubmission.setEmail("jane@example.com");
+        savedSubmission.setPhone("0123456789");
+        savedSubmission.setMessage("Hello");
+        savedSubmission.setStatus(SubmissionStatus.NEW);
+
+        SubmissionResponse expectedResponse = new SubmissionResponse(
+                1L, "Jane Doe", "jane@example.com", "0123456789", "Hello",
+                SubmissionStatus.NEW, LocalDateTime.now(), LocalDateTime.now());
+
+        when(submissionMapper.toEntity(request)).thenReturn(mappedEntity);
+        when(submissionRepository.save(mappedEntity)).thenReturn(savedSubmission);
+        when(submissionMapper.toResponse(savedSubmission)).thenReturn(expectedResponse);
+
+        SubmissionResponse actual = submissionService.createSubmission(request);
+
+        assertThat(actual).isEqualTo(expectedResponse);
+        verify(submissionMapper).toEntity(request);
+        verify(submissionRepository).save(mappedEntity);
+        verify(submissionMapper).toResponse(savedSubmission);
+    }
+
+    @Test
+    void createSubmissionForcesStatusToNewBeforeSaving() {
+        CreateSubmissionRequest request = new CreateSubmissionRequest(
+                "Jane Doe", "jane@example.com", "0123456789", "Hello");
+
+        Submission mappedEntity = new Submission();
+        mappedEntity.setStatus(SubmissionStatus.COMPLETED);
+
+        when(submissionMapper.toEntity(request)).thenReturn(mappedEntity);
+        when(submissionRepository.save(any(Submission.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        submissionService.createSubmission(request);
+
+        ArgumentCaptor<Submission> savedCaptor = ArgumentCaptor.forClass(Submission.class);
+        verify(submissionRepository).save(savedCaptor.capture());
+        assertThat(savedCaptor.getValue().getStatus()).isEqualTo(SubmissionStatus.NEW);
+    }
+
+    @Test
+    void listSubmissionsReturnsMappedPageResponseWhenSearchAndStatusProvided() {
+        String search = "jane";
+        SubmissionStatus status = SubmissionStatus.NEW;
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Submission submission = new Submission();
+        submission.setId(1L);
+        submission.setFullName("Jane Doe");
+        submission.setEmail("jane@example.com");
+        submission.setPhone("0123456789");
+        submission.setMessage("Hello");
+        submission.setStatus(SubmissionStatus.NEW);
+
+        Page<Submission> page = new PageImpl<>(List.of(submission), pageable, 1);
+
+        SubmissionResponse mappedResponse = new SubmissionResponse(
+                1L, "Jane Doe", "jane@example.com", "0123456789", "Hello",
+                SubmissionStatus.NEW, LocalDateTime.now(), LocalDateTime.now());
+
+        when(submissionRepository.search(search, status, pageable)).thenReturn(page);
+        when(submissionMapper.toResponse(submission)).thenReturn(mappedResponse);
+
+        PageResponse<SubmissionResponse> actual = submissionService.listSubmissions(search, status, pageable);
+
+        assertThat(actual.content()).containsExactly(mappedResponse);
+        assertThat(actual.page()).isEqualTo(0);
+        assertThat(actual.size()).isEqualTo(10);
+        assertThat(actual.totalElements()).isEqualTo(1L);
+        assertThat(actual.totalPages()).isEqualTo(1);
+        verify(submissionRepository).search(search, status, pageable);
+        verify(submissionMapper).toResponse(submission);
+    }
+
+    @Test
+    void listSubmissionsNormalizesBlankSearchToNullBeforeQuerying() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Submission> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+
+        when(submissionRepository.search(isNull(), eq(SubmissionStatus.NEW), eq(pageable))).thenReturn(emptyPage);
+
+        submissionService.listSubmissions("   ", SubmissionStatus.NEW, pageable);
+
+        verify(submissionRepository).search(isNull(), eq(SubmissionStatus.NEW), eq(pageable));
+    }
 
     @Test
     void getSubmissionByIdReturnsMappedResponseWhenSubmissionExists() {
