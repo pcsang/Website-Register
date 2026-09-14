@@ -31,3 +31,9 @@ management:
 app:
   cors:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:4200}
+  jwt:
+    secret: ${JWT_SECRET:dev-only-insecure-jwt-signing-secret-CHANGE-ME-before-any-real-deploy-32bytes}
+    expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+  admin:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:dev-only-ChangeMe123!}
