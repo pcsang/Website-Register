@@ -570,7 +570,45 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     `DashboardControllerTest` 1, `HealthControllerTest` 1, `SubmissionControllerTest` 3,
     `GlobalExceptionHandlerTest` 4, `SecurityIntegrationTest` 8, `DashboardServiceTest` 1,
     `SubmissionServiceTest` 8) passes, 0 failures, 0 errors.
-- [ ] **Phase 19 — Integration Tests**
+- [x] **Phase 19 — Integration Tests**
+  - Log (2026-09-14): New `integration/SubmissionApiIntegrationTest`
+    (`backend/src/test/java/com/register/backend/integration/`, new package) — a full `@SpringBootTest` +
+    `@AutoConfigureMockMvc` (real Spring context, real `SubmissionService`/`SubmissionRepository`/
+    Hibernate/JSON serialization, not mocked collaborators, unlike the pre-existing `@WebMvcTest` slices)
+    covering all 5 endpoints in scope: `POST /api/submissions` (201 + full JSON body on valid input; 400 +
+    field errors for blank `fullName`/invalid `email`), `GET /api/admin/submissions` (pagination across 25
+    seeded rows — page/size/totalElements/totalPages; search substring match; status filter; combined
+    search+status), `GET /api/admin/submissions/{id}` (200 + correct body; 404 for a nonexistent id),
+    `PATCH /api/admin/submissions/{id}/status` (200 + updated body on a valid status; 400 on an
+    unrecognized status string `"BOGUS"`; 404 for a nonexistent id), and `GET
+    /api/admin/dashboard/summary` (200 + counts matching seeded NEW/IN_PROGRESS/COMPLETED data). 12 tests
+    total. Admin endpoints get a real bearer token via an actual `POST /api/auth/login` call in
+    `@BeforeEach` (seeded `app.admin.username`/`app.admin.password` credentials) rather than disabling the
+    security filter chain, per the phase's explicit instruction. `POST /api/submissions` stays
+    unauthenticated. Class-level `@Transactional` rolls back each test's seeded data automatically, keeping
+    tests isolated from each other; submissions with a specific pre-set status are seeded directly via
+    `SubmissionRepository.saveAndFlush(...)` (the create endpoint always forces `NEW`).
+  - **Database: H2 vs. PostgreSQL Testcontainers.** This dev machine has no Docker (`docker --version`
+    fails to resolve), so Testcontainers — which would give true PostgreSQL dialect parity with production
+    — cannot run here. Used H2 in-memory instead: added `com.h2database:h2` as a `testImplementation` in
+    `backend/build.gradle`, and a new `backend/src/test/resources/application-test.yml` (activated via
+    `@ActiveProfiles("test")`) pointing at `jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1` with
+    `ddl-auto: create-drop` for a fresh isolated schema per run. Tradeoff written up in the test class's
+    own Javadoc, citing this codebase's own precedent: Phase 6's `lower(bytea) does not exist` bug was a
+    PostgreSQL/Hibernate-specific type-inference quirk on a null bind parameter that only ever surfaced
+    against real PostgreSQL — an H2-backed suite (this one included) would not have caught it either, since
+    H2's type inference differs from PostgreSQL's. Recommendation, not implemented here: reconsider
+    PostgreSQL Testcontainers for this suite once Docker is available in the dev/CI environment.
+  - **Verification (requirement 11 — no dependency on the production/dev database):** stopped local
+    PostgreSQL (`tools\pgsql\bin\pg_ctl.exe -D tools\pgdata stop`), confirmed down via `pg_isready` (exit
+    code 2, "no response"), then ran `./gradlew test --tests
+    "com.register.backend.integration.SubmissionApiIntegrationTest"` — all 12 tests passed with Postgres
+    down, proving the new suite is fully hermetic. Restarted PostgreSQL
+    (`tools\pgsql\bin\pg_ctl.exe -D tools\pgdata -l tools\pg.log -o "-p 5432" start`), confirmed up via
+    `pg_isready`, then ran the full suite: `./gradlew clean test` — **48/48 tests pass, 0 failures, 0
+    errors** (up from 36/36 before this phase; the pre-existing Postgres-dependent
+    `BackendApplicationTests`/`SecurityIntegrationTest` were left untouched and still pass against real
+    PostgreSQL, as required).
 
 ## Deployment (Phases 20–24)
 
