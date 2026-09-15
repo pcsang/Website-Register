@@ -648,7 +648,32 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     user seeding, and `Started BackendApplication in 7.503 seconds`; `curl
     http://localhost:18080/actuator/health` → `{"status":"UP"}`. Verification containers/network removed
     afterward; only the built `register-backend:latest` image kept locally.
-- [ ] **Phase 21 — Docker Compose for Local Development**
+- [x] **Phase 21 — Docker Compose for Local Development**
+  - Log (2026-09-15): New root-level `docker-compose.yml` — two services, `postgres` (image `postgres:16`,
+    named volume `postgres_data` at `/var/lib/postgresql/data`, `pg_isready` healthcheck referencing the
+    container's own `$$POSTGRES_USER`/`$$POSTGRES_DB` env vars) and `backend` (`build: context: ./backend`,
+    i.e. the Phase 20 `Dockerfile`; `depends_on: postgres: condition: service_healthy`; `DB_URL:
+    jdbc:postgresql://postgres:5432/...` — the Compose **service name**, never `localhost`, per
+    requirement 4; `ports: ["8080:8080"]`). All values are `${VAR:-dev-default}` — same "dev-only,
+    CHANGE-ME" defaults already established in `application.yml` (Phases 2/10/16), no production
+    credentials anywhere in the file. New root `.env.example` documenting the overridable vars
+    (`POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD`/`JWT_SECRET`/`ALLOWED_ORIGINS`) — `docker compose`
+    auto-loads a sibling `.env` file, so a developer copies `.env.example` → `.env` to override without
+    touching `docker-compose.yml`. `.gitignore` gained `/.env` so a real override file is never committed.
+  - **Docker networking:** Compose puts both services on one auto-created bridge network
+    (`website-register_default`); within it, each service is reachable by its service name via Docker's
+    embedded DNS (`postgres` resolves to the `register-postgres` container), which is why `DB_URL` uses
+    `postgres:5432` rather than `localhost`. Only `backend` publishes a port to the host
+    (`8080:8080`) — `postgres` has no `ports:` mapping, so it's reachable only from other containers on
+    that network, not from the host or the internet.
+  - **Verified:** `docker compose build` succeeded (reused Phase 20's cached image layers). `docker compose
+    up -d` — `register-postgres` reported `healthy` before `register-backend` started (proving the
+    `depends_on` healthcheck condition works); `curl http://localhost:8080/actuator/health` →
+    `{"status":"UP"}`; backend logs show schema creation and admin-user seeding succeeding over the
+    `postgres` hostname. **Persistence check:** `docker compose down` (no `-v`) → volume still listed in
+    `docker volume ls` → `docker compose up -d` again → logs show **no** re-seed of the admin user,
+    confirming data survived. **Full teardown:** `docker compose down -v` removed containers, network, and
+    the `postgres_data` volume — confirmed gone afterward.
 - [ ] **Phase 22 — Production Database: Neon**
 - [ ] **Phase 23 — Deploy Spring Boot to Render**
 - [ ] **Phase 24 — Deploy Angular to Vercel**
