@@ -1,0 +1,19 @@
+# Test-only datasource configuration, activated via @ActiveProfiles("test").
+#
+# Uses an in-memory H2 database (MODE=PostgreSQL for closer dialect compatibility) instead of the real
+# PostgreSQL instance the rest of the app targets by default (see application.yml). This keeps the new
+# SubmissionApiIntegrationTest fully hermetic and independent of the production/dev PostgreSQL instance —
+# see that test class's Javadoc for the full H2-vs-Testcontainers tradeoff discussion.
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
