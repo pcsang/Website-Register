@@ -11,11 +11,19 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      # Flyway (below) owns schema changes now - Hibernate only checks entities match the DB, never
+      # alters it. See db/migration/V1__init_schema.sql and CHECKLIST.md's Phase 22 entry.
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    # Lets Flyway adopt a pre-existing local/dev database (tables created by the old ddl-auto=update
+    # workflow, no flyway_schema_history yet) by treating it as already at baseline-version (default "1",
+    # i.e. V1) instead of failing with "schema already contains objects". No effect on a fresh/empty
+    # database (e.g. a brand-new Neon instance) - migrations just run normally there.
+    baseline-on-migrate: true
   data:
     web:
       pageable:

@@ -674,7 +674,46 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     `docker volume ls` → `docker compose up -d` again → logs show **no** re-seed of the admin user,
     confirming data survived. **Full teardown:** `docker compose down -v` removed containers, network, and
     the `postgres_data` volume — confirmed gone afterward.
-- [ ] **Phase 22 — Production Database: Neon**
+- [x] **Phase 22 — Production Database: Neon**
+  - Log (2026-09-15): Added `org.flywaydb:flyway-database-postgresql` to `backend/build.gradle`. New
+    `backend/src/main/resources/db/migration/V1__init_schema.sql` — hand-written baseline matching the
+    `Submission`/`AdminUser` entities exactly (verified against the entity source, not just old Hibernate
+    logs): `submissions` and `admin_users` tables, including the `status` `CHECK` constraint and the
+    `username` unique constraint. `application.yml`'s `spring.jpa.hibernate.ddl-auto` changed `update` →
+    `validate` (Flyway now owns schema changes; Hibernate only checks entities match the DB at startup) +
+    added `spring.flyway.baseline-on-migrate: true`. New `backend/src/main/resources/application-prod.yml`
+    (activated via `SPRING_PROFILES_ACTIVE=prod`, to be set on Render in Phase 23): `show-sql: false`,
+    `hibernate.format_sql: false`, `open-in-view: false`, `datasource.hikari.maximum-pool-size: 5`.
+    `application-test.yml` (H2, Phase 19) gained `spring.flyway.enabled: false` — otherwise fully
+    unchanged, keeping that suite hermetic and independent of the Postgres-flavored migration SQL.
+    `CLAUDE.md`'s "Schema caveat" section updated to describe the Flyway/`validate` workflow instead of the
+    old `update`-and-manually-reconcile one.
+  - **Requirement 3 (Neon SSL):** no code change needed — Neon's connection string already carries
+    `?sslmode=require`, and since `DB_URL` is supplied as the complete JDBC URL at deploy time, the
+    PostgreSQL JDBC driver honors that query parameter automatically. Documented in
+    `application-prod.yml`'s header comment.
+  - **Requirement 8 (Flyway recommendation) — decision: yes, introduce it.** `ddl-auto=update` is
+    acceptable for solo local iteration but is a real risk once a production database (Neon) is involved —
+    unreviewed, unversioned schema changes applied silently on every boot. Implemented per requirement 9:
+    `V1__init_schema.sql` as the baseline, future schema changes are new `V{n}__description.sql` files
+    (reviewed like code, never edited post-application), Hibernate no longer touches the schema anywhere
+    except the test profile (see above).
+  - **Requirement 10 (local vs. production):** identical between local and prod — same Flyway migrations,
+    same `ddl-auto: validate` (only the `test` profile differs, by design, per Phase 19). What differs:
+    `DB_URL` (local Postgres vs. Neon's `sslmode=require` connection string, both via the same env var),
+    SQL logging (on locally, off in `prod`), `open-in-view` (Spring default locally, explicitly off in
+    `prod`), and the Hikari pool size (default locally, capped at 5 in `prod` for Neon's connection
+    limits).
+  - **Verified:** `./gradlew clean build` — 48/48 tests pass (H2/test profile fully unaffected). Fresh
+    empty Postgres container → app start → Flyway applied `V1` (confirmed via `flyway_schema_history`),
+    Hibernate `validate` passed. Separately, a Postgres container with the tables pre-created via raw SQL
+    but no `flyway_schema_history` (simulating this machine's existing `ddl-auto=update`-created dev
+    database) → app start → Flyway **baselined** instead of failing with "table already exists"
+    (`<< Flyway Baseline >>`, version 1) — the exact scenario `baseline-on-migrate` exists for. Running with
+    `SPRING_PROFILES_ACTIVE=prod` confirmed no `Hibernate:` SQL log lines and no `open-in-view` warning,
+    vs. both present without the profile. All verification containers/processes removed afterward.
+  - **Not done (explicitly out of scope — "do not deploy yet"):** no Neon account/project created, no
+    actual deployment; `backend/Dockerfile`/`docker-compose.yml` untouched.
 - [ ] **Phase 23 — Deploy Spring Boot to Render**
 - [ ] **Phase 24 — Deploy Angular to Vercel**
 
