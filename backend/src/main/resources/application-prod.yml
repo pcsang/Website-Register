@@ -1,0 +1,18 @@
+# Production overrides, activated via SPRING_PROFILES_ACTIVE=prod (set on Render in Phase 23).
+#
+# DB_URL/DB_USERNAME/DB_PASSWORD still come from application.yml's ${...} env var bindings - Neon's
+# connection string (paste it as DB_URL) already carries `?sslmode=require`, which the PostgreSQL JDBC
+# driver honors automatically; no extra SSL configuration is needed here. See CHECKLIST.md's Phase 22
+# entry for the full local-vs-production explanation.
+spring:
+  jpa:
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+  datasource:
+    hikari:
+      # Neon's free/starter tiers cap concurrent connections fairly low, and Render's smallest instances
+      # run a single app instance - a small fixed pool avoids exhausting Neon's connection limit.
+      maximum-pool-size: 5

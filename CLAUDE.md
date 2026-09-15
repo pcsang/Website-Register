@@ -108,10 +108,12 @@ it (see `application.yml`) — nothing in the app depends on the portable one sp
 
 ### Schema caveat
 
-`spring.jpa.hibernate.ddl-auto` is `update`. Hibernate schema-update only *adds* tables/columns and widens
-column types — it never drops a column or relaxes a `NOT NULL` constraint when an entity field is removed
-or loosened. After removing/loosening an entity field, manually reconcile the table via `psql` (or drop and
-let Hibernate recreate it, if there's no data worth keeping yet).
+As of Phase 22, Flyway owns the schema (`backend/src/main/resources/db/migration/`) and
+`spring.jpa.hibernate.ddl-auto` is `validate` — Hibernate only checks the entities match the database, it
+never alters it. After changing an entity's mapping, add a new `V{n}__description.sql` migration (never
+edit an already-applied one) rather than relying on Hibernate to adjust the table. The `test` profile (H2,
+`application-test.yml`) is the one exception — it disables Flyway and keeps `ddl-auto: create-drop`,
+generating its schema straight from the entities each run, per Phase 19's hermetic-test decision.
 
 ## Architecture
 

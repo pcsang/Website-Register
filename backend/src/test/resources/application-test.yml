@@ -17,3 +17,9 @@ spring:
     properties:
       hibernate:
         format_sql: false
+  flyway:
+    # Phase 22 introduced Flyway for the real Postgres schema (see application.yml), but this profile's
+    # H2 schema is still generated straight from the entities (ddl-auto: create-drop above) - the
+    # PostgreSQL-flavored migration SQL isn't a target here, and keeping this suite's H2 setup unchanged
+    # was the whole point of the Phase 19 hermetic-test decision.
+    enabled: false
