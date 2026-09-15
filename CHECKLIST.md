@@ -612,7 +612,42 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
 
 ## Deployment (Phases 20–24)
 
-- [ ] **Phase 20 — Dockerize Spring Boot**
+- [x] **Phase 20 — Dockerize Spring Boot**
+  - Log (2026-09-15): New `backend/Dockerfile` — multi-stage build. Build stage: official
+    `gradle:8.11.1-jdk21` image (pinned to match `gradle/wrapper/gradle-wrapper.properties`, avoids
+    depending on the wrapper's own distribution download inside the build), runs `gradle bootJar
+    --no-daemon -x test` then copies the boot jar (excluding the `-plain.jar` Gradle also produces, via
+    `cp $(ls build/libs/*.jar | grep -v plain) app.jar` — avoids hardcoding the version string in the
+    Dockerfile). Runtime stage: `eclipse-temurin:21-jre-alpine` (JRE only, no JDK/Gradle in the final
+    image), runs as a new non-root `spring` user, `EXPOSE 8080`, `ENTRYPOINT ["java", "-jar", "app.jar"]`.
+    New `backend/.dockerignore` (`build/`, `.gradle/`, `out/`, `bin/`, `.idea/`, `.vscode/`, `*.iml`,
+    `.git`, `.gitignore`, `*.log`, `HELP.md`, `README.md`). No `ENV` instructions in the Dockerfile and no
+    credentials anywhere in it — `DB_URL`/`DB_USERNAME`/`DB_PASSWORD`/`JWT_SECRET`/`ALLOWED_ORIGINS` are
+    already read via `${VAR:default}` in `application.yml` (Phases 2/10/16), so they're supplied entirely
+    at `docker run` time.
+  - **Tests skipped in the image build (`-x test`), by design:** this repo's `@SpringBootTest`s
+    (`BackendApplicationTests`, `SecurityIntegrationTest`) hit a real PostgreSQL datasource — not available
+    during `docker build` — so running the full suite belongs to CI/`gradlew build`, not image
+    construction.
+  - Commands:
+    ```
+    cd backend
+    docker build -t register-backend:latest .
+
+    docker run -d --name register-backend -p 8080:8080 \
+      -e DB_URL="jdbc:postgresql://<host>:5432/information_db" \
+      -e DB_USERNAME="postgres" \
+      -e DB_PASSWORD="<password>" \
+      -e JWT_SECRET="<32+ byte random secret>" \
+      -e ALLOWED_ORIGINS="http://localhost:4200" \
+      register-backend:latest
+    ```
+  - **Verified:** `docker build` — `BUILD SUCCESSFUL`, final image 409 MB (JRE-alpine + jar only, vs.
+    ~650MB+ for a JDK-based image). Ran the built image in an isolated Docker network against a disposable
+    `postgres:16` container with all 5 required env vars set — logs show Hibernate schema creation, admin
+    user seeding, and `Started BackendApplication in 7.503 seconds`; `curl
+    http://localhost:18080/actuator/health` → `{"status":"UP"}`. Verification containers/network removed
+    afterward; only the built `register-backend:latest` image kept locally.
 - [ ] **Phase 21 — Docker Compose for Local Development**
 - [ ] **Phase 22 — Production Database: Neon**
 - [ ] **Phase 23 — Deploy Spring Boot to Render**
