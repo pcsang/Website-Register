@@ -714,8 +714,50 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     vs. both present without the profile. All verification containers/processes removed afterward.
   - **Not done (explicitly out of scope — "do not deploy yet"):** no Neon account/project created, no
     actual deployment; `backend/Dockerfile`/`docker-compose.yml` untouched.
-- [ ] **Phase 23 — Deploy Spring Boot to Render**
-- [ ] **Phase 24 — Deploy Angular to Vercel**
+- [ ] **Phase 23 — Deploy Spring Boot to Render** (readiness + guide done; actual deploy still pending)
+  - Log (2026-09-16): Fixed the one real gap found inspecting the Phase 20 `Dockerfile`/app for Render
+    readiness (requirement 3): `server.port` in `application.yml` was a hardcoded `8080`, which would have
+    ignored Render's dynamically-assigned `$PORT` and failed health checks — changed to `${PORT:8080}`
+    (falls back to `8080` when `PORT` is unset, so local dev/Docker Compose are unaffected). Verified:
+    `./gradlew clean build` — 48/48 tests still pass. Everything else Render needs was already in place
+    from Phases 20–22 (multi-stage non-root Dockerfile, `prod` Spring profile, Flyway-owned schema,
+    `/api/health` + `/actuator/health`) — no other code changes required.
+  - New `docs/deployment/render-backend-deployment.md`: full walkthrough covering Neon project creation +
+    JDBC URL conversion, Render web service setup (Docker runtime, root directory `backend`), the complete
+    environment variable table (the 5 the phase names + `SPRING_PROFILES_ACTIVE`/`ADMIN_USERNAME`/
+    `ADMIN_PASSWORD`/`JWT_EXPIRATION_MS`, which the app now also needs post-Phase-16), health check path
+    recommendation, GitHub auto-deploy behavior, log inspection, and troubleshooting for DB connection
+    failure / port binding failure / CORS / startup failure.
+  - **Not done (no Render/Neon credentials available in this environment — inherently a you-must-do-this
+    step):** no Render service or Neon project actually created, no live deployment, no production
+    `https://<backend>.onrender.com` URL exists yet. Box left unchecked until that's actually done and
+    verified per the phase's own "after deployment, verify" requirement.
+- [ ] **Phase 24 — Deploy Angular to Vercel** (readiness + guide done; actual deploy still pending)
+  - Log (2026-09-16): `clientUI/src/environments/environment.ts`'s `apiBaseUrl` was still
+    `http://localhost:8080` (would have shipped `localhost` in the production bundle) — replaced with a
+    clearly-labeled placeholder (`https://REPLACE_WITH_YOUR_RENDER_BACKEND_URL.onrender.com`) plus a
+    comment explaining the user must swap in their real Phase 23 Render URL and rebuild before deploying;
+    the actual URL isn't known yet since Phase 23 hasn't been live-deployed either. New `clientUI/vercel.json`
+    — `outputDirectory: dist/client-ui/browser` (confirmed by actually running `npm run build`: Angular's
+    `application` builder nests output under `browser/`, which Vercel's Angular auto-detection has
+    historically missed) and a `rewrites` catch-all to `index.html` (SPA fallback — this app has no
+    per-route static HTML, so a hard refresh on e.g. `/admin/dashboard` 404s at Vercel's static layer
+    without this rule; confirmed no `prerendered-routes.json` entries exist, i.e. genuinely nothing is
+    pre-rendered per-route, so the rewrite is load-bearing, not redundant). Verified: `npm run build`
+    succeeds with the placeholder in place, and the placeholder string was confirmed present in the actual
+    built JS bundle (proves the config plumbing works); `npm test` — 7/7 still pass.
+  - New `docs/deployment/vercel-frontend-deployment.md`: full walkthrough — setting the real API URL
+    (and why it's a committed file edit, not a Vercel env var, since Angular bakes this in at build time
+    with no runtime env-var reading for a static SPA), Vercel project setup (Root Directory `clientUI`,
+    GitHub connection), the Phase 23↔24 circular CORS dependency and how to close it (`ALLOWED_ORIGINS`
+    on Render must be updated to the real Vercel URL after this deploy), a manual verification checklist
+    for all 5 required user flows (public form, admin login, dashboard, detail, status update) plus an
+    explicit refresh-on-deep-route check, and troubleshooting for CORS/deep-link-404/blank-page failure
+    modes.
+  - **Not done (no Vercel credentials available in this environment — inherently a you-must-do-this step,
+    and also blocked on Phase 23 actually being live first):** no Vercel project created, no live
+    deployment, no production Vercel URL exists yet. Box left unchecked until that's done and the
+    verification checklist above has actually been run against the real deployment.
 
 ## Review (Phases 25–26)
 
