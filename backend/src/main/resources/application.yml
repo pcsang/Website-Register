@@ -1,5 +1,7 @@
 server:
-  port: 8080
+  # Render (and most PaaS hosts) assign the listen port dynamically via $PORT at runtime; local dev,
+  # Docker Compose, and any environment without PORT set keep the existing default of 8080.
+  port: ${PORT:8080}
 
 spring:
   application:
