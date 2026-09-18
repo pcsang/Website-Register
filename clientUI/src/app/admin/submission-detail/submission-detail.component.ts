@@ -7,10 +7,21 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import {
+  LucideArrowLeft,
+  LucideCalendar,
+  LucideCircleAlert,
+  LucideFlag,
+  LucideMail,
+  LucideMessageCircle,
+  LucidePhone,
+  LucideRefreshCw,
+  LucideSearchX,
+  LucideUser
+} from '@lucide/angular';
 
 import { SubmissionService } from '../../core/services/submission.service';
 import { Submission, SubmissionStatus } from '../../models/submission.model';
@@ -30,10 +41,19 @@ const STATUS_OPTIONS: SubmissionStatus[] = ['NEW', 'IN_PROGRESS', 'COMPLETED'];
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
-    MatIconModule,
     MatSelectModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    LucideArrowLeft,
+    LucideCalendar,
+    LucideCircleAlert,
+    LucideFlag,
+    LucideMail,
+    LucideMessageCircle,
+    LucidePhone,
+    LucideRefreshCw,
+    LucideSearchX,
+    LucideUser
   ],
   templateUrl: './submission-detail.component.html',
   styleUrl: './submission-detail.component.scss'

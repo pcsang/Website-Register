@@ -1,5 +1,5 @@
 <div class="dashboard-page">
-  <h1>Admin Dashboard</h1>
+  <h1>Dashboard</h1>
 
   <section class="summary-cards">
     @if (summaryLoading) {
@@ -8,35 +8,45 @@
       </div>
     } @else if (summary) {
       <mat-card class="summary-card summary-card--total">
-        <mat-icon class="summary-card__icon">assessment</mat-icon>
+        <span class="summary-card__icon">
+          <svg lucideClipboardList [size]="20"></svg>
+        </span>
         <div class="summary-card__body">
           <mat-card-subtitle>Total</mat-card-subtitle>
           <mat-card-title>{{ summary.total }}</mat-card-title>
         </div>
       </mat-card>
       <mat-card class="summary-card summary-card--new">
-        <mat-icon class="summary-card__icon">fiber_new</mat-icon>
+        <span class="summary-card__icon">
+          <svg lucideSparkles [size]="20"></svg>
+        </span>
         <div class="summary-card__body">
           <mat-card-subtitle>New</mat-card-subtitle>
           <mat-card-title>{{ summary.new }}</mat-card-title>
         </div>
       </mat-card>
       <mat-card class="summary-card summary-card--in-progress">
-        <mat-icon class="summary-card__icon">hourglass_top</mat-icon>
+        <span class="summary-card__icon">
+          <svg lucideHourglass [size]="20"></svg>
+        </span>
         <div class="summary-card__body">
           <mat-card-subtitle>In Progress</mat-card-subtitle>
           <mat-card-title>{{ summary.inProgress }}</mat-card-title>
         </div>
       </mat-card>
       <mat-card class="summary-card summary-card--completed">
-        <mat-icon class="summary-card__icon">task_alt</mat-icon>
+        <span class="summary-card__icon">
+          <svg lucideCircleCheckBig [size]="20"></svg>
+        </span>
         <div class="summary-card__body">
           <mat-card-subtitle>Completed</mat-card-subtitle>
           <mat-card-title>{{ summary.completed }}</mat-card-title>
         </div>
       </mat-card>
       <mat-card class="summary-card summary-card--today">
-        <mat-icon class="summary-card__icon">event</mat-icon>
+        <span class="summary-card__icon">
+          <svg lucideCalendarDays [size]="20"></svg>
+        </span>
         <div class="summary-card__body">
           <mat-card-subtitle>Submitted Today</mat-card-subtitle>
           <mat-card-title>{{ summary.submittedToday }}</mat-card-title>
@@ -47,12 +57,6 @@
 
   <mat-card class="submissions-card">
     <div class="filters">
-      <mat-form-field appearance="outline" class="search-field">
-        <mat-label>Search</mat-label>
-        <mat-icon matPrefix>search</mat-icon>
-        <input matInput [formControl]="searchControl" placeholder="Name, email, or phone" />
-      </mat-form-field>
-
       <mat-form-field appearance="outline" class="status-field">
         <mat-label>Status</mat-label>
         <mat-select [formControl]="statusControl">
@@ -98,7 +102,10 @@
         <ng-container matColumnDef="action">
           <th mat-header-cell *matHeaderCellDef>Action</th>
           <td mat-cell *matCellDef="let submission">
-            <button mat-stroked-button color="primary" (click)="viewSubmission(submission)">View</button>
+            <button mat-stroked-button color="primary" (click)="viewSubmission(submission)">
+              <svg lucideEye [size]="16"></svg>
+              View
+            </button>
           </td>
         </ng-container>
 

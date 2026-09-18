@@ -1,11 +1,13 @@
 import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { LucideClipboardList, LucideMail, LucideMessageCircle, LucidePhone, LucideUser } from '@lucide/angular';
 
 import { SubmissionService } from '../../core/services/submission.service';
 import { CreateSubmissionRequest } from '../../models/submission.model';
@@ -18,12 +20,18 @@ import { CreateSubmissionRequest } from '../../models/submission.model';
   selector: 'app-information-form',
   imports: [
     ReactiveFormsModule,
+    RouterLink,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    LucideClipboardList,
+    LucideMail,
+    LucideMessageCircle,
+    LucidePhone,
+    LucideUser
   ],
   templateUrl: './information-form.component.html',
   styleUrl: './information-form.component.scss'

@@ -1,17 +1,48 @@
 .login-page {
   display: flex;
   justify-content: center;
-  padding: 64px 16px;
-  min-height: calc(100vh - 200px);
-  align-items: flex-start;
+  align-items: center;
+  min-height: 100vh;
+  padding: 32px 16px;
+  background: var(--color-primary-bg);
 }
 
 .login-card {
   width: 100%;
   max-width: 420px;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-soft-lg);
-  padding: 8px 8px 16px;
+  padding: 28px 28px 20px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.login-brand__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.login-brand__name {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--color-text);
+}
+
+.field-icon {
+  color: var(--color-text-muted);
+  margin-right: 4px;
 }
 
 .full-width {
@@ -32,7 +63,7 @@
 
 @media (max-width: 599px) {
   .login-page {
-    padding: 32px 8px;
+    padding: 24px 12px;
   }
 
   .actions {

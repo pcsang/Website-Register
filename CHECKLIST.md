@@ -773,7 +773,7 @@ dashboard design). Analyzed 2026-09-18; two plans written to `docs/planning/` ra
 directly, since the scope/direction needed a decision first. **Plan 2 is a business-direction decision,
 not yet confirmed** — see that plan's "Decisions Needed" section before starting any of its sub-items.
 
-- [ ] **Plan 1 — UI reskin (short-term)** — `docs/planning/plan-1-ui-reskin-ngan-han.md`
+- [x] **Plan 1 — UI reskin (short-term)** — `docs/planning/plan-1-ui-reskin-ngan-han.md`
   - Pure visual layer: new design tokens (`#2B5FFF` primary, Sora/Manrope, new radius scale), sidebar+topbar
     admin layout replacing the current top-nav, outline icon set (`lucide-angular`, pending confirmation
     to add as a new dependency). Keeps the current `Submission` domain and API unchanged. Recommended to
@@ -781,6 +781,79 @@ not yet confirmed** — see that plan's "Decisions Needed" section before starti
   - Known fix identified during analysis: the current 5 dashboard KPI cards use `border-left: 5px solid`
     (`dashboard.component.scss`) — the exact "left-border card" pattern the new design explicitly
     prohibits; needs restyling to the icon-in-colored-square pattern instead.
+  - Log (2026-09-18): Implemented in `clientUI/`. Design tokens in `styles.scss` remapped to
+    `--color-primary:#2B5FFF` / `--color-primary-dark:#1E46CC` / `--color-primary-bg:#EAF0FF` /
+    `--color-accent:#F97316` / `--color-accent-dark:#C2570F` / `--color-bg:#F7F8FB` (public) /
+    new `--color-bg-admin:#F4F5FA` (admin content) / `--color-text:#12172B` /
+    `--color-text-muted:#5B6478` / `--color-border:#E7E9F3`; radius scale `--radius-sm:8px
+    /-md:12px/-lg:16px` plus new `--radius-xl:20px`/`--radius-pill:999px`; new sidebar tokens
+    `--sidebar-bg:#12172B`/`--sidebar-item-active-bg:#1E2440`/`--sidebar-text:#9AA1B8`/
+    `--sidebar-text-muted:#5C6480`; `--shadow-soft`/`--shadow-soft-lg` flattened to near-flat
+    (`0 1px 2px/1px 3px` and `0 8px 24px` low-opacity shadows). Status badges remapped: NEW→purple
+    (`#7C3AED`/`#F4EEFF`), IN_PROGRESS→warning amber (`#B7791F`/`#FFF6E5`), COMPLETED→success green
+    (`#16A34A`/`#EAFBF0`) — a judgment call (plan listed 4 available colors — success/warning/danger/
+    purple — for 3 statuses; danger unused since no status is a "rejected" state). Fonts swapped
+    Poppins+Inter → Sora (600/700/800) + Manrope (400–800) in `index.html` and the `mat.theme()`
+    typography config; the now-unused Material Icons font `<link>` was also removed from
+    `index.html` since no `mat-icon` usage remains anywhere in the app after the icon-set swap.
+    Custom M3 Material palette generated for the exact brand hexes via
+    `ng generate @angular/material:theme-color --primary-color=#2B5FFF --tertiary-color=#F97316`
+    (works fully offline — local color-science algorithm, no network needed) into
+    `src/_theme-colors.scss` (`$primary-palette`/`$tertiary-palette`), wired into the existing
+    `mat.theme()` block in place of `mat.$green-palette`/`mat.$orange-palette`. Verified compiled
+    output: `--mat-sys-primary: #024bee` — this is Material's own M3 tone-40 for a `#2B5FFF` seed
+    (expected HCT-algorithm divergence from the literal seed hex, not a bug; same category of
+    check used for the prior green reskin).
+  - Added `@lucide/angular@1.47.0` as a new dependency (not the older `lucide-angular` named in the
+    prompt, which is deprecated upstream in favor of this scoped package — same publisher/icon set,
+    confirmed compatible with Angular 19 via its peerDependencies). Its current API dropped the
+    `LucideAngularModule.pick({...})` pattern in favor of importing individual per-icon standalone
+    components (e.g. `LucideSearch`) directly into each consuming component's `imports` array and
+    using them as `<svg lucideSearch [size]="18"></svg>` — functionally equivalent tree-shaking
+    (only referenced icons are bundled) achieved a different way. `mat-icon`/Material Icons font
+    usage fully replaced; Material-internal icons (`mat-select` arrow, `mat-paginator` prev/next,
+    which are already inline SVG in this Material version, not font ligatures) were left untouched
+    per the constraint.
+  - New `AdminLayoutComponent` (`admin/layout/`) — dark 264px sidebar (brand + single "Dashboard"
+    nav item; the plan's two conceptual sidebar items collapsed into one real nav entry because
+    both would point at the same existing `/admin/dashboard` route/table and the plan explicitly
+    said not to split it into two routes) + 76px topbar. Topbar search box relays into the routed
+    page's own `searchControl` via `(activate)`/`(deactivate)` on the nested `router-outlet` (duck-
+    typed — shows the search box only when the activated component exposes a `searchControl`, i.e.
+    on `/admin/dashboard`; hidden on `/admin/submissions/:id`) — reuses the exact existing
+    `FormControl` instance, no new filtering logic. Topbar also shows `AuthService.username()` and
+    a logout button wired to the existing `AuthService.logout()`. Off-canvas/hamburger behavior
+    below 960px width for responsiveness (not explicitly required by the plan but matches the
+    prior top-nav's own mobile breakpoint handling).
+  - `app.routes.ts`: `admin/dashboard` and `admin/submissions/:id` nested as children of a new
+    `{ path: 'admin', component: AdminLayoutComponent, children: [...] }` route; `canActivate:
+    [authGuard]` kept on each child (not moved to the parent), per the plan. `admin/login` stays a
+    sibling top-level route, outside the layout.
+  - `AppComponent` reduced to just `<router-outlet>` — the old shared top-nav (brand + Form/Admin
+    Dashboard/Login-Logout) is gone; `/form` now renders its own simple header directly in
+    `information-form.component.html` (brand mark, no nav links — there's nothing else to link to
+    on that single-page public route) and `/admin/login` is a full-page card with no site header,
+    per the plan.
+  - Restyled (template + SCSS only, no TS business-logic changes) `dashboard` (KPI cards: removed
+    `border-left: 5px solid` entirely, replaced with the icon-in-colored-square pattern; search
+    field removed from the page's own filter bar since it now lives in the topbar; status filter
+    dropdown kept in place), `submission-detail` (field labels use Lucide icons, added a top
+    "Back to Dashboard" link with an arrow icon), `login` (centered card, `--radius-xl`, brand
+    mark), `information-form` (dropped the gradient hero per the plan; flat `--color-bg` page
+    background, card on `--radius-lg`).
+  - Test fixes required by the routing/template changes (assertions unchanged): added a minimal
+    `admin-layout.component.spec.ts` (same "should create" pattern as every other component spec);
+    `information-form.component.spec.ts` needed `provideRouter([])` added since its template now
+    uses `routerLink` for the new header brand link (previously had no router dependency at all).
+  - Verification: `npm run build` passes — initial bundle 729.19 kB → 795.64 kB (+66.45 kB, all
+    from the 26 individual Lucide icon components imported across 6 files; no `LucideAngularModule`
+    whole-set import anywhere). `npm test -- --watch=false --browsers=ChromeHeadless` — 8/8 pass (7
+    original + 1 new `AdminLayoutComponent` spec). Compiled CSS spot-checked for `--color-primary`,
+    `--color-bg-admin`, `--sidebar-bg`, `--radius-lg`, `--font-heading`, `--font-body`, and
+    `--mat-sys-primary` — all present with the expected values. Visual/manual `ng serve` pass across
+    `/form`, `/admin/login`, `/admin/dashboard`, `/admin/submissions/:id` was **not** performed in
+    this environment (no way to screenshot/see rendered output from here) — a human visual pass is
+    still needed to confirm the design actually looks right, not just that it compiles.
 - [ ] **Plan 2 — Full DriveUp domain adoption (backend + frontend)** — `docs/planning/plan-2-full-redesign-driveup.md`
   - **Not started — pending business-direction confirmation.** Broken into sub-phases below; do not start
     any of them until the plan's "Decisions Needed" table (entity naming, 4-state status data migration,

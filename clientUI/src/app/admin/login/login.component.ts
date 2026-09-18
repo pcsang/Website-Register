@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { LucideClipboardList, LucideLock, LucideUser } from '@lucide/angular';
 
 import { AuthService } from '../../core/services/auth.service';
 
@@ -24,7 +25,10 @@ import { AuthService } from '../../core/services/auth.service';
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    LucideClipboardList,
+    LucideLock,
+    LucideUser
   ],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss'
