@@ -22,12 +22,30 @@
     <nav class="sidebar__nav">
       <a
         class="sidebar__nav-link"
-        routerLink="/admin/dashboard"
+        routerLink="/admin/overview"
         routerLinkActive="sidebar__nav-link--active"
         (click)="closeSidebar()"
       >
         <svg lucideLayoutDashboard [size]="18"></svg>
-        <span>Dashboard</span>
+        <span>Overview</span>
+      </a>
+      <a
+        class="sidebar__nav-link"
+        routerLink="/admin/students"
+        routerLinkActive="sidebar__nav-link--active"
+        (click)="closeSidebar()"
+      >
+        <svg lucideUsers [size]="18"></svg>
+        <span>Students</span>
+      </a>
+      <a
+        class="sidebar__nav-link"
+        routerLink="/admin/courses"
+        routerLinkActive="sidebar__nav-link--active"
+        (click)="closeSidebar()"
+      >
+        <svg lucideCalendarDays [size]="18"></svg>
+        <span>Courses</span>
       </a>
     </nav>
   </aside>

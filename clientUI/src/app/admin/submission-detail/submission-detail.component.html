@@ -1,7 +1,7 @@
 <div class="detail-page">
   <button type="button" class="back-link" (click)="backToDashboard()">
     <svg lucideArrowLeft [size]="16"></svg>
-    Back to Dashboard
+    Back to Students
   </button>
 
   <h1>Submission Detail</h1>
@@ -14,13 +14,13 @@
     <mat-card class="state-card">
       <svg lucideSearchX [size]="40" class="state-card__icon"></svg>
       <p>Submission not found.</p>
-      <button mat-stroked-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
+      <button mat-stroked-button color="primary" (click)="backToDashboard()">Back to Students</button>
     </mat-card>
   } @else if (loadError) {
     <mat-card class="state-card">
       <svg lucideCircleAlert [size]="40" class="state-card__icon"></svg>
       <p>Something went wrong loading this submission.</p>
-      <button mat-stroked-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
+      <button mat-stroked-button color="primary" (click)="backToDashboard()">Back to Students</button>
     </mat-card>
   } @else if (submission) {
     <mat-card class="detail-card">

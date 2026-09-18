@@ -2,11 +2,13 @@ import { Component, inject, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import {
+  LucideCalendarDays,
   LucideClipboardList,
   LucideLayoutDashboard,
   LucideLogOut,
   LucideMenu,
   LucideSearch,
+  LucideUsers,
   LucideX
 } from '@lucide/angular';
 
@@ -38,9 +40,10 @@ function hasSearchControl(component: unknown): component is SearchableRouteCompo
 
 /**
  * Admin area shell: a dark left sidebar (navigation) plus a topbar (search relay, current
- * admin, logout) wrapping the routed admin pages (`DashboardComponent`,
- * `SubmissionDetailComponent`). Purely a layout/visual wrapper — it reuses `AuthService` and
- * the routed page's own `searchControl` rather than introducing new state or business logic.
+ * admin, logout) wrapping the routed admin pages (`OverviewComponent`, `StudentsComponent`,
+ * `CoursesComponent`, `SubmissionDetailComponent`). Purely a layout/visual wrapper — it reuses
+ * `AuthService` and the routed page's own `searchControl` rather than introducing new state or
+ * business logic.
  */
 @Component({
   selector: 'app-admin-layout',
@@ -49,11 +52,13 @@ function hasSearchControl(component: unknown): component is SearchableRouteCompo
     RouterLink,
     RouterLinkActive,
     ReactiveFormsModule,
+    LucideCalendarDays,
     LucideClipboardList,
     LucideLayoutDashboard,
     LucideLogOut,
     LucideMenu,
     LucideSearch,
+    LucideUsers,
     LucideX
   ],
   templateUrl: './admin-layout.component.html',
@@ -70,7 +75,7 @@ export class AdminLayoutComponent {
 
   /**
    * The routed page's own search `FormControl`, when the currently activated admin page
-   * exposes one (currently only `DashboardComponent`); `null` otherwise, hiding the topbar
+   * exposes one (currently only `StudentsComponent`); `null` otherwise, hiding the topbar
    * search box.
    */
   activeSearchControl: FormControl<string> | null = null;

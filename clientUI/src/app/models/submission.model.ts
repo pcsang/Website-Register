@@ -1,8 +1,9 @@
 /**
  * Status values a submission can have, mirroring the backend's
- * `com.register.backend.enums.SubmissionStatus` enum exactly.
+ * `com.register.backend.enums.SubmissionStatus` enum exactly (4-state model as of the D2 backend
+ * change: `PENDING_CONSULTATION` → `CONFIRMED` → `IN_PROGRESS` → `GRADUATED`).
  */
-export type SubmissionStatus = 'NEW' | 'IN_PROGRESS' | 'COMPLETED';
+export type SubmissionStatus = 'PENDING_CONSULTATION' | 'CONFIRMED' | 'IN_PROGRESS' | 'GRADUATED';
 
 /**
  * A submission as returned by the backend, mirroring
@@ -17,6 +18,7 @@ export interface Submission {
   phone: string | null;
   message: string | null;
   status: SubmissionStatus;
+  courseId: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,13 +26,16 @@ export interface Submission {
 /**
  * Request body for creating a new submission, mirroring
  * `com.register.backend.dto.request.CreateSubmissionRequest`.
- * `fullName` is required; `email`, `phone`, and `message` are optional on the backend.
+ * `fullName` is required; `email`, `phone`, `message`, and `courseId` are all optional on the
+ * backend (`courseId` isn't used by `/form` yet — it's wired here for the future landing-page
+ * registration flow).
  */
 export interface CreateSubmissionRequest {
   fullName: string;
   email?: string;
   phone?: string;
   message?: string;
+  courseId?: number;
 }
 
 /**

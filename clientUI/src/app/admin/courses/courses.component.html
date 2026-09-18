@@ -1,0 +1,96 @@
+<div class="courses-page">
+  <div class="page-header">
+    <h1>Courses</h1>
+    <button mat-raised-button color="primary" (click)="openCreateDialog()">
+      <svg lucidePlus [size]="16"></svg>
+      Thêm khoá học
+    </button>
+  </div>
+
+  <mat-card class="courses-card">
+    <div class="filters">
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>License Class</mat-label>
+        <mat-select [formControl]="licenseClassControl">
+          @for (option of licenseClassOptions; track option) {
+            <mat-option [value]="option">{{ option }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Branch</mat-label>
+        <mat-select [formControl]="branchControl">
+          <mat-option [value]="'ALL'">All branches</mat-option>
+          @for (branch of branches; track branch) {
+            <mat-option [value]="branch">{{ branch }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <div class="table-container">
+      <table class="courses-table">
+        <thead>
+          <tr>
+            <th>Course</th>
+            <th>Start Date</th>
+            <th>Teacher</th>
+            <th>Seats</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (course of courses; track course.id) {
+            <tr>
+              <td>
+                <div class="course-name">{{ course.name }}</div>
+                <div class="course-subtitle">{{ course.licenseClass }} · {{ course.branch || '—' }}</div>
+              </td>
+              <td>{{ course.startDate | date: 'mediumDate' }}</td>
+              <td>{{ course.teacherName || '—' }}</td>
+              <td class="seats-cell">
+                <div class="seats-info">
+                  <span>{{ course.seatsRegistered }}/{{ course.seatsTotal }}</span>
+                  <span class="availability-badge" [ngClass]="'availability-' + availabilityClass(course)">
+                    {{ course.availabilityStatus }}
+                  </span>
+                </div>
+                <div class="seats-progress-track">
+                  <div
+                    class="seats-progress-fill"
+                    [ngClass]="'fill-' + availabilityClass(course)"
+                    [style.width.%]="seatsPercent(course)"
+                  ></div>
+                </div>
+              </td>
+              <td>
+                <button mat-stroked-button color="primary" (click)="openEditDialog(course)">
+                  <svg lucidePencil [size]="14"></svg>
+                  Edit
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      @if (listLoading) {
+        <div class="list-loading">
+          <mat-spinner diameter="32"></mat-spinner>
+        </div>
+      } @else if (courses.length === 0) {
+        <div class="empty-state">No courses found.</div>
+      }
+    </div>
+
+    <mat-paginator
+      [length]="totalElements"
+      [pageIndex]="pageIndex"
+      [pageSize]="pageSize"
+      [pageSizeOptions]="[10, 20, 50]"
+      (page)="onPageChange($event)"
+      showFirstLastButtons
+    ></mat-paginator>
+  </mat-card>
+</div>
