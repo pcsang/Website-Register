@@ -47,3 +47,7 @@ app:
   admin:
     username: ${ADMIN_USERNAME:admin}
     password: ${ADMIN_PASSWORD:dev-only-ChangeMe123!}
+  dashboard:
+    # Cap on the number of rows returned by the "upcoming course schedule" section of
+    # GET /api/admin/dashboard/overview - the design mockup shows 4 rows.
+    upcoming-courses-limit: ${DASHBOARD_UPCOMING_COURSES_LIMIT:4}
