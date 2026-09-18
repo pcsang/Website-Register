@@ -766,6 +766,40 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
 
 ---
 
+## DriveUp UI/UX Redesign (proposed — not part of the original numbered roadmap)
+
+Source: `driveup-claude-cli-prompt-design-UI-UX.md` (a driving-school "DriveUp" landing page + admin
+dashboard design). Analyzed 2026-09-18; two plans written to `docs/planning/` rather than implemented
+directly, since the scope/direction needed a decision first. **Plan 2 is a business-direction decision,
+not yet confirmed** — see that plan's "Decisions Needed" section before starting any of its sub-items.
+
+- [ ] **Plan 1 — UI reskin (short-term)** — `docs/planning/plan-1-ui-reskin-ngan-han.md`
+  - Pure visual layer: new design tokens (`#2B5FFF` primary, Sora/Manrope, new radius scale), sidebar+topbar
+    admin layout replacing the current top-nav, outline icon set (`lucide-angular`, pending confirmation
+    to add as a new dependency). Keeps the current `Submission` domain and API unchanged. Recommended to
+    do this regardless of whether Plan 2 ever happens.
+  - Known fix identified during analysis: the current 5 dashboard KPI cards use `border-left: 5px solid`
+    (`dashboard.component.scss`) — the exact "left-border card" pattern the new design explicitly
+    prohibits; needs restyling to the icon-in-colored-square pattern instead.
+- [ ] **Plan 2 — Full DriveUp domain adoption (backend + frontend)** — `docs/planning/plan-2-full-redesign-driveup.md`
+  - **Not started — pending business-direction confirmation.** Broken into sub-phases below; do not start
+    any of them until the plan's "Decisions Needed" table (entity naming, 4-state status data migration,
+    revenue/pass-rate metric sourcing, branch concept, teacher/car scope) is resolved.
+  - [ ] D1 — Backend: `Course` entity, repository, service, controller, `GET /api/courses` (public) +
+        `GET/POST/PATCH /api/admin/courses`, `V2__add_courses_table.sql`.
+  - [ ] D2 — Backend: extend `Submission` (`course_id` FK, 4-state `SubmissionStatus` + data migration
+        for any existing rows), `V3__extend_submissions.sql`.
+  - [ ] D3 — Backend: `GET /api/admin/dashboard/overview` (monthly registration counts, upcoming course
+        schedule, estimated revenue, admin-configured pass-rate value).
+  - [ ] D4 — Frontend: extend `AdminLayoutComponent` (from Plan 1, if done) with the real **Khoá học &
+        Lịch học** nav item.
+  - [ ] D5 — Frontend: real (non-mock) Overview/Students/Courses admin pages wired to D1–D3's endpoints;
+        month chart via plain flexbox (no new chart dependency).
+  - [ ] D6 — Frontend: full 8-section `LandingPageComponent` at `/`, replacing `/form`, wired to
+        `GET /api/courses` and the extended `CreateSubmissionRequest`.
+
+---
+
 ## Milestones
 
 - [x] **Milestone 1 — Backend MVP core path** (`POST /api/submissions` → Spring Boot → PostgreSQL) —
