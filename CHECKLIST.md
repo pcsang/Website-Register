@@ -714,7 +714,7 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     vs. both present without the profile. All verification containers/processes removed afterward.
   - **Not done (explicitly out of scope — "do not deploy yet"):** no Neon account/project created, no
     actual deployment; `backend/Dockerfile`/`docker-compose.yml` untouched.
-- [ ] **Phase 23 — Deploy Spring Boot to Render** (readiness + guide done; actual deploy still pending)
+- [x] **Phase 23 — Deploy Spring Boot to Render**
   - Log (2026-09-16): Fixed the one real gap found inspecting the Phase 20 `Dockerfile`/app for Render
     readiness (requirement 3): `server.port` in `application.yml` was a hardcoded `8080`, which would have
     ignored Render's dynamically-assigned `$PORT` and failed health checks — changed to `${PORT:8080}`
@@ -728,10 +728,12 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     `ADMIN_PASSWORD`/`JWT_EXPIRATION_MS`, which the app now also needs post-Phase-16), health check path
     recommendation, GitHub auto-deploy behavior, log inspection, and troubleshooting for DB connection
     failure / port binding failure / CORS / startup failure.
-  - **Not done (no Render/Neon credentials available in this environment — inherently a you-must-do-this
-    step):** no Render service or Neon project actually created, no live deployment, no production
-    `https://<backend>.onrender.com` URL exists yet. Box left unchecked until that's actually done and
-    verified per the phase's own "after deployment, verify" requirement.
+  - **Live (2026-09-18):** deployed by the user (Render/Neon account creation and dashboard setup is
+    inherently a you-must-do-this step, done outside this environment) to
+    `https://backed-website-register.onrender.com`. Verified directly, per the phase's own "after
+    deployment, verify" requirement: `GET /api/health` → `200 {"status":"UP"}` (after a ~71s cold start —
+    Render free tier + Neon free tier both sleep on inactivity, expected, not a problem) and
+    `POST /api/submissions` with a real body → `201 Created` with the persisted row. Box checked.
 - [ ] **Phase 24 — Deploy Angular to Vercel** (readiness + guide done; actual deploy still pending)
   - Log (2026-09-16): `clientUI/src/environments/environment.ts`'s `apiBaseUrl` was still
     `http://localhost:8080` (would have shipped `localhost` in the production bundle) — replaced with a
