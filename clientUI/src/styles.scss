@@ -27,14 +27,26 @@
   --color-border: #e7e9f3;
   --color-border-2: #e1e4ef;
 
-  // Status badge colors — NEW uses the purple accent (fresh/unhandled),
-  // IN_PROGRESS uses warning amber, COMPLETED uses success green.
-  --status-new-bg: #f4eeff;
-  --status-new-text: #7c3aed;
+  // Status badge colors (4-state SubmissionStatus model) — PENDING_CONSULTATION uses the purple
+  // accent (fresh/unhandled inquiry), CONFIRMED uses info blue, IN_PROGRESS uses warning amber,
+  // GRADUATED uses success green.
+  --status-pending-consultation-bg: #f4eeff;
+  --status-pending-consultation-text: #7c3aed;
+  --status-confirmed-bg: #eaf0ff;
+  --status-confirmed-text: #2b5fff;
   --status-in-progress-bg: #fff6e5;
   --status-in-progress-text: #b7791f;
-  --status-completed-bg: #eafbf0;
-  --status-completed-text: #16a34a;
+  --status-graduated-bg: #eafbf0;
+  --status-graduated-text: #16a34a;
+
+  // Course seat-availability colors (CourseAvailabilityStatus), reusing the same
+  // success/warning/danger semantics used elsewhere.
+  --availability-available-bg: #eafbf0;
+  --availability-available-text: #16a34a;
+  --availability-filling-up-bg: #fff6e5;
+  --availability-filling-up-text: #b7791f;
+  --availability-full-bg: #fdecec;
+  --availability-full-text: #d92d20;
 
   // Shape & elevation — near-flat shadows, no heavy "landscaping" drop-shadows.
   --radius-sm: 8px;
@@ -85,6 +97,18 @@ body {
   height: 100%;
 }
 
+// Smooth in-page scrolling for the landing page's anchor nav (#features/#courses/#process/
+// #reviews/#dangky); scroll-margin-top keeps the sticky nav bar from covering a section's
+// heading when jumped to.
+html {
+  scroll-behavior: smooth;
+}
+
+section[id],
+main[id] {
+  scroll-margin-top: 80px;
+}
+
 body {
   margin: 0;
   font-family: var(--font-body);
@@ -113,9 +137,14 @@ h4 {
   text-transform: uppercase;
   white-space: nowrap;
 
-  &.status-new {
-    background: var(--status-new-bg);
-    color: var(--status-new-text);
+  &.status-pending-consultation {
+    background: var(--status-pending-consultation-bg);
+    color: var(--status-pending-consultation-text);
+  }
+
+  &.status-confirmed {
+    background: var(--status-confirmed-bg);
+    color: var(--status-confirmed-text);
   }
 
   &.status-in-progress {
@@ -123,8 +152,35 @@ h4 {
     color: var(--status-in-progress-text);
   }
 
-  &.status-completed {
-    background: var(--status-completed-bg);
-    color: var(--status-completed-text);
+  &.status-graduated {
+    background: var(--status-graduated-bg);
+    color: var(--status-graduated-text);
+  }
+}
+
+// Shared course seat-availability badge styling, reused by the Courses table.
+.availability-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+
+  &.availability-available {
+    background: var(--availability-available-bg);
+    color: var(--availability-available-text);
+  }
+
+  &.availability-filling-up {
+    background: var(--availability-filling-up-bg);
+    color: var(--availability-filling-up-text);
+  }
+
+  &.availability-full {
+    background: var(--availability-full-bg);
+    color: var(--availability-full-text);
   }
 }

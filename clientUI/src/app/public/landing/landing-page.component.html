@@ -1,0 +1,357 @@
+<nav class="nav">
+  <div class="nav__inner">
+    <a class="nav__brand" href="#top">
+      <span class="nav__brand-icon">
+        <svg lucideCar [size]="20"></svg>
+      </span>
+      <span class="nav__brand-name">DriveUp</span>
+    </a>
+
+    <div class="nav__menu">
+      <a href="#features">Ưu điểm</a>
+      <a href="#courses">Khoá học</a>
+      <a href="#process">Quy trình</a>
+      <a href="#reviews">Đánh giá</a>
+    </div>
+
+    <div class="nav__actions">
+      <a class="nav__hotline" href="tel:19002025">
+        <svg lucidePhone [size]="16"></svg>
+        <span>1900 2025</span>
+      </a>
+      <a class="btn btn--primary btn--pill" href="#dangky">Đăng ký ngay</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero__inner">
+      <div class="hero__content">
+        <span class="badge badge--primary">
+          <svg lucideStar [size]="14"></svg>
+          Trung tâm đào tạo lái xe hàng đầu TP.HCM
+        </span>
+        <h1 class="hero__title">Học lái xe an toàn, đậu ngay lần đầu</h1>
+        <p class="hero__description">
+          DriveUp đồng hành cùng bạn từ những buổi học đầu tiên đến khi tự tin cầm vô lăng, với đội ngũ
+          giáo viên tận tâm và quy trình đào tạo bài bản.
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--primary btn--lg" href="#dangky">Đăng ký học ngay</a>
+          <a class="btn btn--outline btn--lg" href="#courses">Xem khoá học</a>
+        </div>
+        <div class="hero__stats">
+          <div class="hero__stat">
+            <span class="hero__stat-value">15.000+</span>
+            <span class="hero__stat-label">Học viên đã tốt nghiệp</span>
+          </div>
+          <div class="hero__stat">
+            <span class="hero__stat-value">98%</span>
+            <span class="hero__stat-label">Tỷ lệ đậu lần đầu</span>
+          </div>
+          <div class="hero__stat">
+            <span class="hero__stat-value">12</span>
+            <span class="hero__stat-label">Chi nhánh toàn quốc</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero__illustration">
+        <div class="hero__illustration-panel">
+          <svg lucideCar [size]="160"></svg>
+        </div>
+        <div class="hero__illustration-badge">
+          <svg lucideCircleCheckBig [size]="20"></svg>
+          Đã đăng ký thành công!
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="section">
+    <div class="section__inner">
+      <div class="section__heading">
+        <span class="eyebrow">Vì sao chọn DriveUp</span>
+        <h2>Đồng hành cùng bạn từ ngày đầu đến khi cầm bằng</h2>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="feature-card__icon feature-card__icon--blue">
+            <svg lucideUsers [size]="22"></svg>
+          </span>
+          <h3>Giáo viên giàu kinh nghiệm</h3>
+          <p>Đội ngũ giáo viên có nhiều năm kinh nghiệm, tận tâm hướng dẫn từng học viên.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-card__icon feature-card__icon--orange">
+            <svg lucideCar [size]="22"></svg>
+          </span>
+          <h3>Xe tập lái đời mới</h3>
+          <p>Xe tập lái đời mới, trang bị đầy đủ, được bảo dưỡng định kỳ đảm bảo an toàn.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-card__icon feature-card__icon--green">
+            <svg lucideCalendarDays [size]="22"></svg>
+          </span>
+          <h3>Lịch học linh hoạt</h3>
+          <p>Lịch học linh hoạt theo nhiều khung giờ, phù hợp với người đi làm và sinh viên.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-card__icon feature-card__icon--purple">
+            <svg lucideCircleCheck [size]="22"></svg>
+          </span>
+          <h3>Hỗ trợ hồ sơ trọn gói</h3>
+          <p>Hỗ trợ trọn gói thủ tục hồ sơ, đăng ký thi từ A đến Z, tiết kiệm thời gian.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Courses -->
+  <section id="courses" class="section section--white">
+    <div class="section__inner">
+      <div class="section__heading">
+        <span class="eyebrow">Khoá học</span>
+        <h2>Chọn hạng bằng phù hợp với bạn</h2>
+      </div>
+
+      @if (coursesLoading) {
+        <div class="state-loading">
+          <mat-spinner diameter="32"></mat-spinner>
+        </div>
+      } @else if (courses.length === 0) {
+        <p class="empty-state">
+          @if (coursesLoadFailed) {
+            Không thể tải danh sách khoá học. Vui lòng thử lại sau.
+          } @else {
+            Hiện chưa có khoá học nào, vui lòng quay lại sau.
+          }
+        </p>
+      } @else {
+        <div class="courses-grid">
+          @for (course of courses; track course.id) {
+            <div class="course-card" [class.course-card--popular]="isPopular(course)">
+              @if (isPopular(course)) {
+                <span class="course-card__badge">Phổ biến nhất</span>
+              }
+              <h3 class="course-card__name">{{ course.name }}</h3>
+              <div class="course-card__price">{{ formattedPrice(course) }}</div>
+              <ul class="course-card__features">
+                @for (feature of courseFeatures(course); track feature) {
+                  <li>
+                    <svg lucideCircleCheck [size]="16"></svg>
+                    <span>{{ feature }}</span>
+                  </li>
+                }
+              </ul>
+              <a
+                class="btn btn--block"
+                [class.btn--primary]="isPopular(course)"
+                [class.btn--outline]="!isPopular(course)"
+                href="#dangky"
+                (click)="selectCourseClass(course.licenseClass)"
+              >
+                Chọn khoá học
+              </a>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- Process -->
+  <section id="process" class="section">
+    <div class="section__inner">
+      <div class="section__heading">
+        <span class="eyebrow">Quy trình</span>
+        <h2>Chỉ 4 bước để bắt đầu</h2>
+      </div>
+
+      <div class="process-steps">
+        @for (item of processSteps; track item.step) {
+          <div class="process-step">
+            <span class="process-step__circle" [class.process-step__circle--filled]="item.step === 1">
+              {{ item.step }}
+            </span>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.description }}</p>
+          </div>
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Reviews -->
+  <section id="reviews" class="section section--white">
+    <div class="section__inner">
+      <div class="section__heading">
+        <span class="eyebrow">Đánh giá</span>
+        <h2>Học viên nói gì về DriveUp</h2>
+      </div>
+
+      <div class="testimonials-grid">
+        @for (testimonial of testimonials; track testimonial.name) {
+          <div class="testimonial-card">
+            <div class="testimonial-card__stars">
+              @for (star of stars; track star) {
+                <svg lucideStar [size]="16"></svg>
+              }
+            </div>
+            <p class="testimonial-card__quote">“{{ testimonial.quote }}”</p>
+            <div class="testimonial-card__author">
+              <span class="testimonial-card__avatar">{{ testimonial.initials }}</span>
+              <div>
+                <div class="testimonial-card__name">{{ testimonial.name }}</div>
+                <div class="testimonial-card__role">{{ testimonial.role }}</div>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Registration form -->
+  <section id="dangky" class="section">
+    <div class="section__inner registration">
+      <div class="registration__info">
+        <span class="eyebrow">Đăng ký tư vấn</span>
+        <h2>Để lại thông tin, tư vấn viên sẽ liên hệ ngay</h2>
+        <p>
+          Chỉ mất 1 phút để đăng ký, đội ngũ tư vấn viên của DriveUp sẽ liên hệ tư vấn miễn phí và giúp
+          bạn chọn khoá học phù hợp nhất.
+        </p>
+        <ul class="contact-list">
+          <li>
+            <svg lucidePhone [size]="18"></svg>
+            <span>1900 2025</span>
+          </li>
+          <li>
+            <svg lucideMail [size]="18"></svg>
+            <span>lienhe&#64;driveup.vn</span>
+          </li>
+          <li>
+            <svg lucideMapPin [size]="18"></svg>
+            <span>123 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="registration__card">
+        @if (!submitted) {
+          <form [formGroup]="registrationForm" (ngSubmit)="onSubmit()" novalidate>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Họ và tên</mat-label>
+              <input matInput formControlName="fullName" maxlength="200" required />
+              @if (registrationForm.controls.fullName.touched && registrationForm.controls.fullName.hasError('required')) {
+                <mat-error>Vui lòng nhập họ và tên.</mat-error>
+              } @else if (registrationForm.controls.fullName.hasError('maxlength')) {
+                <mat-error>Họ và tên tối đa 200 ký tự.</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Số điện thoại</mat-label>
+              <input matInput formControlName="phone" maxlength="30" type="tel" required />
+              @if (registrationForm.controls.phone.touched && registrationForm.controls.phone.hasError('required')) {
+                <mat-error>Vui lòng nhập số điện thoại.</mat-error>
+              } @else if (registrationForm.controls.phone.hasError('pattern')) {
+                <mat-error>Số điện thoại không hợp lệ.</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Email</mat-label>
+              <input matInput formControlName="email" maxlength="255" type="email" required />
+              @if (registrationForm.controls.email.touched && registrationForm.controls.email.hasError('required')) {
+                <mat-error>Vui lòng nhập email.</mat-error>
+              } @else if (registrationForm.controls.email.hasError('email')) {
+                <mat-error>Email không đúng định dạng.</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Hạng bằng muốn học</mat-label>
+              <mat-select formControlName="licenseClass" required>
+                <mat-option value="B1">Hạng B1</mat-option>
+                <mat-option value="B2">Hạng B2</mat-option>
+                <mat-option value="C">Hạng C</mat-option>
+              </mat-select>
+              @if (registrationForm.controls.licenseClass.touched && registrationForm.controls.licenseClass.hasError('required')) {
+                <mat-error>Vui lòng chọn hạng bằng.</mat-error>
+              }
+            </mat-form-field>
+
+            <button mat-raised-button color="primary" type="submit" class="full-width" [disabled]="submitting">
+              @if (submitting) {
+                <mat-progress-spinner diameter="20" mode="indeterminate"></mat-progress-spinner>
+              } @else {
+                Gửi đăng ký
+              }
+            </button>
+          </form>
+        } @else {
+          <div class="success-state">
+            <span class="success-state__icon">
+              <svg lucideCircleCheckBig [size]="40"></svg>
+            </span>
+            <h3>Đăng ký thành công!</h3>
+            <p>Cảm ơn bạn đã đăng ký. Tư vấn viên của DriveUp sẽ liên hệ với bạn trong thời gian sớm nhất.</p>
+          </div>
+        }
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer__inner">
+    <div class="footer__columns">
+      <div class="footer__col footer__col--brand">
+        <div class="footer__brand">
+          <svg lucideCar [size]="20"></svg>
+          <span>DriveUp</span>
+        </div>
+        <p>
+          Trung tâm đào tạo lái xe uy tín hàng đầu TP. Hồ Chí Minh, đồng hành cùng bạn trên hành trình
+          chinh phục tấm bằng lái xe.
+        </p>
+      </div>
+
+      <div class="footer__col">
+        <h4>Khoá học</h4>
+        <a href="#courses">Hạng B1</a>
+        <a href="#courses">Hạng B2</a>
+        <a href="#courses">Hạng C</a>
+      </div>
+
+      <div class="footer__col">
+        <h4>Công ty</h4>
+        <span>Về chúng tôi</span>
+        <a href="#reviews">Đánh giá</a>
+        <a href="#dangky">Liên hệ</a>
+      </div>
+
+      <div class="footer__col">
+        <h4>Liên hệ</h4>
+        <span>Hotline: 1900 2025</span>
+        <span>Email: lienhe&#64;driveup.vn</span>
+        <span>123 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh</span>
+      </div>
+    </div>
+
+    <div class="footer__bottom">
+      <span>&#169; 2026 DriveUp. Tất cả các quyền được bảo lưu.</span>
+      <span>Giấy phép kinh doanh số: 0312345678 do Sở KH&amp;ĐT TP.HCM cấp.</span>
+    </div>
+  </div>
+</footer>
