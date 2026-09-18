@@ -1,0 +1,139 @@
+<div class="overview-page">
+  <h1>Overview</h1>
+
+  @if (overviewLoading) {
+    <div class="state-loading">
+      <mat-spinner diameter="32"></mat-spinner>
+    </div>
+  } @else if (overview) {
+    <section class="kpi-cards">
+      <mat-card class="kpi-card kpi-card--new">
+        <span class="kpi-card__icon">
+          <svg lucideUserPlus [size]="20"></svg>
+        </span>
+        <div class="kpi-card__body">
+          <mat-card-subtitle>New Students This Month</mat-card-subtitle>
+          <mat-card-title>{{ newStudentsThisMonth() }}</mat-card-title>
+        </div>
+      </mat-card>
+
+      <mat-card class="kpi-card kpi-card--revenue">
+        <span class="kpi-card__icon">
+          <svg lucideBanknote [size]="20"></svg>
+        </span>
+        <div class="kpi-card__body">
+          <mat-card-subtitle>Revenue This Month (est.)</mat-card-subtitle>
+          <mat-card-title>{{ formattedRevenue() }}</mat-card-title>
+        </div>
+      </mat-card>
+
+      <mat-card class="kpi-card kpi-card--open-courses">
+        <span class="kpi-card__icon">
+          <svg lucideCalendarDays [size]="20"></svg>
+        </span>
+        <div class="kpi-card__body">
+          <mat-card-subtitle>Open Courses</mat-card-subtitle>
+          <mat-card-title>{{ overview.upcomingCourses.length }}</mat-card-title>
+        </div>
+      </mat-card>
+
+      <mat-card class="kpi-card kpi-card--pass-rate">
+        <span class="kpi-card__icon">
+          <svg lucideGraduationCap [size]="20"></svg>
+        </span>
+        <div class="kpi-card__body">
+          <mat-card-subtitle>Pass Rate</mat-card-subtitle>
+          <mat-card-title>{{ formattedPassRate() }}</mat-card-title>
+        </div>
+      </mat-card>
+    </section>
+
+    <div class="overview-grid">
+      <mat-card class="chart-card">
+        <h2>Registrations by Month</h2>
+        <div class="chart">
+          @for (bar of chartBars; track bar.month) {
+            <div class="chart__column">
+              <div class="chart__bar-track">
+                <div class="chart__bar" [style.height.%]="bar.heightPercent">
+                  <span class="chart__bar-value">{{ bar.count }}</span>
+                </div>
+              </div>
+              <span class="chart__bar-label">{{ bar.label }}</span>
+            </div>
+          }
+        </div>
+      </mat-card>
+
+      <mat-card class="upcoming-card">
+        <div class="card-header">
+          <h2>Upcoming Courses</h2>
+          <a routerLink="/admin/courses" class="view-all">
+            View all
+            <svg lucideArrowRight [size]="14"></svg>
+          </a>
+        </div>
+        @if (overview.upcomingCourses.length === 0) {
+          <div class="empty-state">No upcoming courses.</div>
+        } @else {
+          <ul class="upcoming-list">
+            @for (course of overview.upcomingCourses; track course.id) {
+              <li class="upcoming-item">
+                <div class="upcoming-item__main">
+                  <span class="upcoming-item__name">{{ course.name }}</span>
+                  <span class="upcoming-item__meta">{{ course.licenseClass }} · {{ course.branch || '—' }}</span>
+                </div>
+                <div class="upcoming-item__side">
+                  <span class="upcoming-item__date">{{ course.startDate | date: 'mediumDate' }}</span>
+                  <span class="upcoming-item__seats">{{ course.seatsRegistered }}/{{ course.seatsTotal }} seats</span>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </mat-card>
+    </div>
+  }
+
+  <mat-card class="recent-card">
+    <div class="card-header">
+      <h2>Recent Registrations</h2>
+      <a routerLink="/admin/students" class="view-all">
+        View all
+        <svg lucideArrowRight [size]="14"></svg>
+      </a>
+    </div>
+
+    @if (recentLoading) {
+      <div class="state-loading">
+        <mat-spinner diameter="28"></mat-spinner>
+      </div>
+    } @else if (recentSubmissions.length === 0) {
+      <div class="empty-state">No submissions yet.</div>
+    } @else {
+      <table class="recent-table">
+        <thead>
+          <tr>
+            <th>Full Name</th>
+            <th>Status</th>
+            <th>Created At</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (submission of recentSubmissions; track submission.id) {
+            <tr>
+              <td>{{ submission.fullName }}</td>
+              <td>
+                <span
+                  class="status-badge"
+                  [ngClass]="'status-' + submission.status.toLowerCase().replace('_', '-')"
+                >{{ submission.status }}</span>
+              </td>
+              <td>{{ submission.createdAt | date: 'medium' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </mat-card>
+</div>

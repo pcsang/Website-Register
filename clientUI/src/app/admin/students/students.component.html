@@ -1,59 +1,5 @@
-<div class="dashboard-page">
-  <h1>Dashboard</h1>
-
-  <section class="summary-cards">
-    @if (summaryLoading) {
-      <div class="summary-loading">
-        <mat-spinner diameter="32"></mat-spinner>
-      </div>
-    } @else if (summary) {
-      <mat-card class="summary-card summary-card--total">
-        <span class="summary-card__icon">
-          <svg lucideClipboardList [size]="20"></svg>
-        </span>
-        <div class="summary-card__body">
-          <mat-card-subtitle>Total</mat-card-subtitle>
-          <mat-card-title>{{ summary.total }}</mat-card-title>
-        </div>
-      </mat-card>
-      <mat-card class="summary-card summary-card--new">
-        <span class="summary-card__icon">
-          <svg lucideSparkles [size]="20"></svg>
-        </span>
-        <div class="summary-card__body">
-          <mat-card-subtitle>New</mat-card-subtitle>
-          <mat-card-title>{{ summary.new }}</mat-card-title>
-        </div>
-      </mat-card>
-      <mat-card class="summary-card summary-card--in-progress">
-        <span class="summary-card__icon">
-          <svg lucideHourglass [size]="20"></svg>
-        </span>
-        <div class="summary-card__body">
-          <mat-card-subtitle>In Progress</mat-card-subtitle>
-          <mat-card-title>{{ summary.inProgress }}</mat-card-title>
-        </div>
-      </mat-card>
-      <mat-card class="summary-card summary-card--completed">
-        <span class="summary-card__icon">
-          <svg lucideCircleCheckBig [size]="20"></svg>
-        </span>
-        <div class="summary-card__body">
-          <mat-card-subtitle>Completed</mat-card-subtitle>
-          <mat-card-title>{{ summary.completed }}</mat-card-title>
-        </div>
-      </mat-card>
-      <mat-card class="summary-card summary-card--today">
-        <span class="summary-card__icon">
-          <svg lucideCalendarDays [size]="20"></svg>
-        </span>
-        <div class="summary-card__body">
-          <mat-card-subtitle>Submitted Today</mat-card-subtitle>
-          <mat-card-title>{{ summary.submittedToday }}</mat-card-title>
-        </div>
-      </mat-card>
-    }
-  </section>
+<div class="students-page">
+  <h1>Students</h1>
 
   <mat-card class="submissions-card">
     <div class="filters">
@@ -62,6 +8,16 @@
         <mat-select [formControl]="statusControl">
           @for (option of statusOptions; track option) {
             <mat-option [value]="option">{{ option }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="course-field">
+        <mat-label>Course</mat-label>
+        <mat-select [formControl]="courseControl">
+          <mat-option [value]="'ALL'">All courses</mat-option>
+          @for (course of courses; track course.id) {
+            <mat-option [value]="course.id">{{ course.name }}</mat-option>
           }
         </mat-select>
       </mat-form-field>

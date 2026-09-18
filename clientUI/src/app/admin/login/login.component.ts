@@ -69,7 +69,7 @@ export class LoginComponent {
       .subscribe({
         next: () => {
           this.submitting = false;
-          this.router.navigate(['/admin/dashboard']);
+          this.router.navigate(['/admin/overview']);
         },
         error: (error: unknown) => {
           this.submitting = false;

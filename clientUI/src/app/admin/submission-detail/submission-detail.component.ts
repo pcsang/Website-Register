@@ -27,7 +27,7 @@ import { SubmissionService } from '../../core/services/submission.service';
 import { Submission, SubmissionStatus } from '../../models/submission.model';
 
 /** Status dropdown options offered on the detail page. */
-const STATUS_OPTIONS: SubmissionStatus[] = ['NEW', 'IN_PROGRESS', 'COMPLETED'];
+const STATUS_OPTIONS: SubmissionStatus[] = ['PENDING_CONSULTATION', 'CONFIRMED', 'IN_PROGRESS', 'GRADUATED'];
 
 /**
  * Admin Submission Detail page: loads a single submission by route `:id`, displays its
@@ -83,7 +83,7 @@ export class SubmissionDetailComponent implements OnInit {
   updating = false;
 
   /** Reactive control for the status dropdown. */
-  readonly statusControl = new FormControl<SubmissionStatus>('NEW', { nonNullable: true });
+  readonly statusControl = new FormControl<SubmissionStatus>('PENDING_CONSULTATION', { nonNullable: true });
 
   /**
    * Reads the `id` route parameter and loads the corresponding submission.
@@ -172,12 +172,12 @@ export class SubmissionDetailComponent implements OnInit {
   }
 
   /**
-   * Navigates back to the admin dashboard.
+   * Navigates back to the admin Students page.
    *
    * @returns void
    */
   backToDashboard(): void {
-    this.router.navigate(['/admin/dashboard']);
+    this.router.navigate(['/admin/students']);
   }
 
   /**

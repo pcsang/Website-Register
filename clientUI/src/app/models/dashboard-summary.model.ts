@@ -1,13 +1,13 @@
 /**
  * Admin dashboard summary counts, mirroring
- * `com.register.backend.dto.response.DashboardSummaryResponse`.
- * NOTE: the backend's `newCount` record component is serialized under the JSON key `"new"`
- * (via `@JsonProperty("new")`), so the wire key — and this property — is `new`, not `newCount`.
+ * `com.register.backend.dto.response.DashboardSummaryResponse` exactly (4-state shape as of the
+ * D2 backend change).
  */
 export interface DashboardSummary {
   total: number;
-  new: number;
+  pendingConsultation: number;
+  confirmed: number;
   inProgress: number;
-  completed: number;
+  graduated: number;
   submittedToday: number;
 }

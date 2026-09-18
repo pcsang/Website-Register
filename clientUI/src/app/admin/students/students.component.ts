@@ -13,21 +13,18 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import {
-  LucideCalendarDays,
-  LucideCircleCheckBig,
-  LucideClipboardList,
-  LucideEye,
-  LucideHourglass,
-  LucideSparkles
-} from '@lucide/angular';
+import { LucideEye } from '@lucide/angular';
 
 import { SubmissionService } from '../../core/services/submission.service';
-import { DashboardSummary } from '../../models/dashboard-summary.model';
+import { CourseService } from '../../core/services/course.service';
 import { Submission, SubmissionStatus } from '../../models/submission.model';
+import { Course } from '../../models/course.model';
 
 /** Status filter options for the dropdown, including the "no filter" ALL option. */
 type StatusFilter = 'ALL' | SubmissionStatus;
+
+/** Course filter options for the dropdown; `'ALL'` omits the `courseId` param entirely. */
+type CourseFilter = 'ALL' | number;
 
 /** Default page size requested from the backend, matching its own default. */
 const DEFAULT_PAGE_SIZE = 20;
@@ -36,11 +33,12 @@ const DEFAULT_PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
 /**
- * Admin Dashboard page: summary cards + a server-side paginated, searchable, filterable
- * table of submissions with navigation to the submission detail page.
+ * Admin Students page: a server-side paginated, searchable, filterable (status + course) table
+ * of submissions with navigation to the submission detail page. Formerly the combined
+ * "Dashboard" page — the KPI summary cards that used to live here moved to `OverviewComponent`.
  */
 @Component({
-  selector: 'app-dashboard',
+  selector: 'app-students',
   imports: [
     CommonModule,
     FormsModule,
@@ -53,18 +51,14 @@ const SEARCH_DEBOUNCE_MS = 300;
     MatButtonModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    LucideCalendarDays,
-    LucideCircleCheckBig,
-    LucideClipboardList,
-    LucideEye,
-    LucideHourglass,
-    LucideSparkles
+    LucideEye
   ],
-  templateUrl: './dashboard.component.html',
-  styleUrl: './dashboard.component.scss'
+  templateUrl: './students.component.html',
+  styleUrl: './students.component.scss'
 })
-export class DashboardComponent implements OnInit, OnDestroy {
+export class StudentsComponent implements OnInit, OnDestroy {
   private readonly submissionService = inject(SubmissionService);
+  private readonly courseService = inject(CourseService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
 
@@ -72,13 +66,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly displayedColumns: string[] = ['fullName', 'email', 'phone', 'status', 'createdAt', 'action'];
 
   /** Status filter options rendered in the dropdown. */
-  readonly statusOptions: StatusFilter[] = ['ALL', 'NEW', 'IN_PROGRESS', 'COMPLETED'];
+  readonly statusOptions: StatusFilter[] = ['ALL', 'PENDING_CONSULTATION', 'CONFIRMED', 'IN_PROGRESS', 'GRADUATED'];
 
-  /** Dashboard summary counts, or `null` while loading/on error. */
-  summary: DashboardSummary | null = null;
-
-  /** `true` while the summary request is in flight. */
-  summaryLoading = false;
+  /** Courses available for the course filter dropdown, loaded once on init. */
+  courses: Course[] = [];
 
   /** Current page of submissions to render in the table. */
   submissions: Submission[] = [];
@@ -101,6 +92,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** Reactive control for the status filter dropdown. */
   readonly statusControl = new FormControl<StatusFilter>('ALL', { nonNullable: true });
 
+  /** Reactive control for the course filter dropdown. */
+  readonly courseControl = new FormControl<CourseFilter>('ALL', { nonNullable: true });
+
   /** Emits whenever the debounced search term should be applied to the list request. */
   private readonly searchTerm$ = new Subject<string>();
 
@@ -108,7 +102,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly subscriptions = new Subscription();
 
   /**
-   * Wires up the debounced search stream and loads the initial summary + submissions page.
+   * Wires up the debounced search stream, loads the course filter options, and loads the
+   * initial submissions page.
    *
    * @returns void
    */
@@ -133,7 +128,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
       })
     );
 
-    this.loadSummary();
+    this.subscriptions.add(
+      this.courseControl.valueChanges.subscribe(() => {
+        this.pageIndex = 0;
+        this.loadSubmissions();
+      })
+    );
+
+    this.loadCourses();
     this.loadSubmissions();
   }
 
@@ -147,31 +149,26 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Loads the dashboard summary counts from the backend and shows an error notification on
-   * failure without affecting the submissions list.
+   * Loads the course list used to populate the course filter dropdown. Keeps a simple flat
+   * dropdown of every course (a single page at a generous size) rather than a fancy searchable
+   * picker, per this page's scope.
    *
    * @returns void
    */
-  loadSummary(): void {
-    this.summaryLoading = true;
-    this.submissionService.getDashboardSummary().subscribe({
-      next: (summary) => {
-        this.summary = summary;
-        this.summaryLoading = false;
+  loadCourses(): void {
+    this.courseService.listCoursesForAdmin(0, 100).subscribe({
+      next: (page) => {
+        this.courses = page.content;
       },
-      error: (error: unknown) => {
-        this.summaryLoading = false;
-        this.snackBar.open(this.extractErrorMessage(error, 'Failed to load dashboard summary.'), 'Close', {
-          duration: 5000
-        });
+      error: () => {
+        // Non-fatal: the course filter simply stays empty if this fails.
       }
     });
   }
 
   /**
-   * Loads the current page of submissions from the backend, applying the current search
-   * term and status filter, and shows an error notification on failure without affecting
-   * the summary cards.
+   * Loads the current page of submissions from the backend, applying the current search term,
+   * status filter, and course filter, and shows an error notification on failure.
    *
    * @returns void
    */
@@ -179,13 +176,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.listLoading = true;
     const search = this.searchControl.value.trim();
     const status = this.statusControl.value;
+    const courseId = this.courseControl.value;
 
     this.submissionService
       .listSubmissions(
         this.pageIndex,
         this.pageSize,
         search !== '' ? search : undefined,
-        status !== 'ALL' ? status : undefined
+        status !== 'ALL' ? status : undefined,
+        courseId !== 'ALL' ? courseId : undefined
       )
       .subscribe({
         next: (page) => {
