@@ -1,0 +1,77 @@
+<div class="admin-shell" [class.admin-shell--sidebar-open]="sidebarOpen()">
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <span class="sidebar__brand-icon">
+        <svg lucideClipboardList [size]="20"></svg>
+      </span>
+      <span class="sidebar__brand-text">
+        <span class="sidebar__brand-title">GreenField Register</span>
+        <span class="sidebar__brand-subtitle">Admin Panel</span>
+      </span>
+      <button
+        type="button"
+        class="sidebar__close"
+        aria-label="Close sidebar"
+        (click)="closeSidebar()"
+      >
+        <svg lucideX [size]="18"></svg>
+      </button>
+    </div>
+
+    <div class="sidebar__section-label">Menu</div>
+    <nav class="sidebar__nav">
+      <a
+        class="sidebar__nav-link"
+        routerLink="/admin/dashboard"
+        routerLinkActive="sidebar__nav-link--active"
+        (click)="closeSidebar()"
+      >
+        <svg lucideLayoutDashboard [size]="18"></svg>
+        <span>Dashboard</span>
+      </a>
+    </nav>
+  </aside>
+
+  <div class="admin-shell__backdrop" (click)="closeSidebar()"></div>
+
+  <div class="admin-content">
+    <header class="topbar">
+      <button
+        type="button"
+        class="topbar__menu-toggle"
+        aria-label="Toggle sidebar"
+        (click)="toggleSidebar()"
+      >
+        <svg lucideMenu [size]="20"></svg>
+      </button>
+
+      @if (activeSearchControl) {
+        <div class="topbar__search">
+          <svg lucideSearch [size]="18" class="topbar__search-icon"></svg>
+          <input
+            type="text"
+            [formControl]="activeSearchControl"
+            placeholder="Search by name, email, or phone"
+            aria-label="Search submissions"
+          />
+        </div>
+      } @else {
+        <div class="topbar__search-placeholder"></div>
+      }
+
+      <div class="topbar__user">
+        @if (authService.isAuthenticated()) {
+          <span class="topbar__avatar">{{ (authService.username() ?? '?').charAt(0).toUpperCase() }}</span>
+          <span class="topbar__username">{{ authService.username() }}</span>
+          <button type="button" class="topbar__logout" (click)="onLogout()" aria-label="Logout">
+            <svg lucideLogOut [size]="18"></svg>
+          </button>
+        }
+      </div>
+    </header>
+
+    <main class="admin-page">
+      <router-outlet (activate)="onOutletActivate($event)" (deactivate)="onOutletDeactivate()"></router-outlet>
+    </main>
+  </div>
+</div>

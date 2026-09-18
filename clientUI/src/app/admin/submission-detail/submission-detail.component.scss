@@ -1,7 +1,25 @@
 .detail-page {
-  padding: 24px 16px 48px;
   max-width: 720px;
   margin: 0 auto;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 12px;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+
+  &:hover {
+    color: var(--color-primary);
+  }
 }
 
 .state-loading {
@@ -15,12 +33,10 @@
   text-align: center;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
+  border: 1px solid var(--color-border);
 
   &__icon {
     color: var(--color-text-muted);
-    font-size: 40px;
-    width: 40px;
-    height: 40px;
     margin-bottom: 8px;
   }
 
@@ -34,6 +50,7 @@
   padding: 20px 24px 24px;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
+  border: 1px solid var(--color-border);
 }
 
 .detail-grid {
@@ -50,11 +67,9 @@
   font-weight: 600;
   color: var(--color-text-muted);
 
-  mat-icon {
+  svg {
     color: var(--color-primary);
-    font-size: 20px;
-    width: 20px;
-    height: 20px;
+    flex-shrink: 0;
   }
 }
 
@@ -68,18 +83,12 @@
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
   padding-top: 8px;
   border-top: 1px solid var(--color-border);
 }
 
 .status-field {
   flex: 1 1 220px;
-}
-
-.actions {
-  display: flex;
-  justify-content: flex-start;
 }
 
 @media (max-width: 599px) {

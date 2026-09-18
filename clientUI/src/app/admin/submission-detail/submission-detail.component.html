@@ -1,4 +1,9 @@
 <div class="detail-page">
+  <button type="button" class="back-link" (click)="backToDashboard()">
+    <svg lucideArrowLeft [size]="16"></svg>
+    Back to Dashboard
+  </button>
+
   <h1>Submission Detail</h1>
 
   @if (loading) {
@@ -7,32 +12,32 @@
     </div>
   } @else if (notFound) {
     <mat-card class="state-card">
-      <mat-icon class="state-card__icon">search_off</mat-icon>
+      <svg lucideSearchX [size]="40" class="state-card__icon"></svg>
       <p>Submission not found.</p>
       <button mat-stroked-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
     </mat-card>
   } @else if (loadError) {
     <mat-card class="state-card">
-      <mat-icon class="state-card__icon">error_outline</mat-icon>
+      <svg lucideCircleAlert [size]="40" class="state-card__icon"></svg>
       <p>Something went wrong loading this submission.</p>
       <button mat-stroked-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
     </mat-card>
   } @else if (submission) {
     <mat-card class="detail-card">
       <div class="detail-grid">
-        <div class="detail-label"><mat-icon>person</mat-icon>Full Name</div>
+        <div class="detail-label"><svg lucideUser [size]="18"></svg>Full Name</div>
         <div class="detail-value">{{ submission.fullName }}</div>
 
-        <div class="detail-label"><mat-icon>email</mat-icon>Email</div>
+        <div class="detail-label"><svg lucideMail [size]="18"></svg>Email</div>
         <div class="detail-value">{{ submission.email || '—' }}</div>
 
-        <div class="detail-label"><mat-icon>phone</mat-icon>Phone</div>
+        <div class="detail-label"><svg lucidePhone [size]="18"></svg>Phone</div>
         <div class="detail-value">{{ submission.phone || '—' }}</div>
 
-        <div class="detail-label"><mat-icon>chat_bubble_outline</mat-icon>Message</div>
+        <div class="detail-label"><svg lucideMessageCircle [size]="18"></svg>Message</div>
         <div class="detail-value">{{ submission.message || '—' }}</div>
 
-        <div class="detail-label"><mat-icon>flag</mat-icon>Status</div>
+        <div class="detail-label"><svg lucideFlag [size]="18"></svg>Status</div>
         <div class="detail-value">
           <span
             class="status-badge"
@@ -40,10 +45,10 @@
           >{{ submission.status }}</span>
         </div>
 
-        <div class="detail-label"><mat-icon>event</mat-icon>Created At</div>
+        <div class="detail-label"><svg lucideCalendar [size]="18"></svg>Created At</div>
         <div class="detail-value">{{ submission.createdAt | date: 'medium' }}</div>
 
-        <div class="detail-label"><mat-icon>update</mat-icon>Updated At</div>
+        <div class="detail-label"><svg lucideRefreshCw [size]="18"></svg>Updated At</div>
         <div class="detail-value">{{ submission.updatedAt | date: 'medium' }}</div>
       </div>
 
@@ -69,10 +74,6 @@
             Update Status
           }
         </button>
-      </div>
-
-      <div class="actions">
-        <button mat-stroked-button (click)="backToDashboard()">Back to Dashboard</button>
       </div>
     </mat-card>
   }

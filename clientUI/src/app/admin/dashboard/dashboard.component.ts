@@ -9,12 +9,18 @@ import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import {
+  LucideCalendarDays,
+  LucideCircleCheckBig,
+  LucideClipboardList,
+  LucideEye,
+  LucideHourglass,
+  LucideSparkles
+} from '@lucide/angular';
 
 import { SubmissionService } from '../../core/services/submission.service';
 import { DashboardSummary } from '../../models/dashboard-summary.model';
@@ -43,12 +49,16 @@ const SEARCH_DEBOUNCE_MS = 300;
     MatTableModule,
     MatPaginatorModule,
     MatFormFieldModule,
-    MatInputModule,
     MatSelectModule,
     MatButtonModule,
-    MatIconModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    LucideCalendarDays,
+    LucideCircleCheckBig,
+    LucideClipboardList,
+    LucideEye,
+    LucideHourglass,
+    LucideSparkles
   ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'

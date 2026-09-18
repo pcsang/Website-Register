@@ -1,60 +1,79 @@
 /* You can add global styles to this file, and also import other style files */
 @use '@angular/material' as mat;
+@use './theme-colors' as theme-colors;
 
 // ---------------------------------------------------------------------------
-// Design system — natural / earthy palette inspired by landscaping-business
-// sites: deep forest greens, warm terracotta accents, sand-toned surfaces.
+// Design system — DriveUp-inspired reskin: cool blue primary, warm orange
+// accent, near-flat surfaces, no gradients, no left-border cards.
+// See docs/planning/plan-1-ui-reskin-ngan-han.md for the full token mapping.
 // ---------------------------------------------------------------------------
 :root {
   // Brand colors
-  --color-primary: #2f6f4e;
-  --color-primary-dark: #1f4d36;
-  --color-primary-light: #8fbc94;
-  --color-accent: #d98e4a;
-  --color-accent-dark: #b8703a;
+  --color-primary: #2b5fff;
+  --color-primary-dark: #1e46cc;
+  --color-primary-light: #eaf0ff;
+  --color-primary-bg: #eaf0ff;
+  --color-accent: #f97316;
+  --color-accent-dark: #c2570f;
+  --color-accent-bg: #fff1e8;
 
   // Surfaces & text
-  --color-bg: #f7f5f0;
+  --color-bg: #f7f8fb;
+  --color-bg-admin: #f4f5fa;
   --color-surface: #ffffff;
-  --color-text: #2b2620;
-  --color-text-muted: #6b6459;
-  --color-border: #e4dfd3;
+  --color-text: #12172b;
+  --color-text-muted: #5b6478;
+  --color-text-muted-2: #8a93a8;
+  --color-border: #e7e9f3;
+  --color-border-2: #e1e4ef;
 
-  // Status badge colors
-  --status-new-bg: #e3edfa;
-  --status-new-text: #2a5c8a;
-  --status-in-progress-bg: #fbebda;
-  --status-in-progress-text: #a85d1f;
-  --status-completed-bg: #e1f0e5;
-  --status-completed-text: #1f6b3f;
+  // Status badge colors — NEW uses the purple accent (fresh/unhandled),
+  // IN_PROGRESS uses warning amber, COMPLETED uses success green.
+  --status-new-bg: #f4eeff;
+  --status-new-text: #7c3aed;
+  --status-in-progress-bg: #fff6e5;
+  --status-in-progress-text: #b7791f;
+  --status-completed-bg: #eafbf0;
+  --status-completed-text: #16a34a;
 
-  // Shape & elevation
+  // Shape & elevation — near-flat shadows, no heavy "landscaping" drop-shadows.
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 20px;
-  --shadow-soft: 0 4px 16px rgba(31, 77, 54, 0.1);
-  --shadow-soft-lg: 0 12px 32px rgba(31, 77, 54, 0.14);
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+  --shadow-soft: 0 1px 2px rgba(18, 23, 43, 0.06), 0 1px 3px rgba(18, 23, 43, 0.04);
+  --shadow-soft-lg: 0 8px 24px rgba(18, 23, 43, 0.08);
+
+  // Sidebar (admin layout — dark)
+  --sidebar-bg: #12172b;
+  --sidebar-item-active-bg: #1e2440;
+  --sidebar-text: #9aa1b8;
+  --sidebar-text-muted: #5c6480;
 
   // Typography
-  --font-heading: 'Poppins', 'Helvetica Neue', sans-serif;
-  --font-body: 'Inter', 'Helvetica Neue', sans-serif;
+  --font-heading: 'Sora', 'Helvetica Neue', sans-serif;
+  --font-body: 'Manrope', 'Helvetica Neue', sans-serif;
 }
 
-// Custom Material theme — replaces the prebuilt indigo-pink theme so
-// Material components (buttons, form fields, table, paginator, select,
-// snackbar, spinner) pick up the green/earth palette automatically.
+// Custom Material theme — replaces the prebuilt palette so Material
+// components (buttons, form fields, table, paginator, select, snackbar,
+// spinner) pick up the DriveUp blue/orange palette automatically. The
+// primary/tertiary palettes below were generated from the exact brand hex
+// codes (#2B5FFF / #F97316) via `ng generate @angular/material:theme-color`
+// since neither matches a built-in Material palette — see `_theme-colors.scss`.
 // See: https://material.angular.dev/guide/theming
 html {
   @include mat.theme(
     (
       color: (
         theme-type: light,
-        primary: mat.$green-palette,
-        tertiary: mat.$orange-palette,
+        primary: theme-colors.$primary-palette,
+        tertiary: theme-colors.$tertiary-palette,
       ),
       typography: (
-        plain-family: 'Inter, "Helvetica Neue", sans-serif',
-        brand-family: 'Poppins, "Helvetica Neue", sans-serif',
+        plain-family: 'Manrope, "Helvetica Neue", sans-serif',
+        brand-family: 'Sora, "Helvetica Neue", sans-serif',
       ),
       density: 0,
     )
@@ -87,7 +106,7 @@ h4 {
   display: inline-flex;
   align-items: center;
   padding: 4px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;

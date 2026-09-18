@@ -1,6 +1,7 @@
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 
 import { InformationFormComponent } from './information-form.component';
 
@@ -10,7 +11,8 @@ describe('InformationFormComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [InformationFormComponent, HttpClientTestingModule, NoopAnimationsModule]
+      imports: [InformationFormComponent, HttpClientTestingModule, NoopAnimationsModule],
+      providers: [provideRouter([])]
     })
     .compileComponents();
 

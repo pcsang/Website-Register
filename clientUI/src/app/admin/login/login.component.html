@@ -1,5 +1,12 @@
 <div class="login-page">
   <mat-card class="login-card">
+    <div class="login-brand">
+      <span class="login-brand__icon">
+        <svg lucideClipboardList [size]="22"></svg>
+      </span>
+      <span class="login-brand__name">GreenField Register</span>
+    </div>
+
     <mat-card-header>
       <mat-card-title>Admin Login</mat-card-title>
       <mat-card-subtitle>Sign in to manage submissions.</mat-card-subtitle>
@@ -9,6 +16,7 @@
       <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Username</mat-label>
+          <svg matPrefix lucideUser [size]="18" class="field-icon"></svg>
           <input matInput formControlName="username" required autocomplete="username" />
           @if (form.controls.username.hasError('required')) {
             <mat-error>Username is required.</mat-error>
@@ -17,6 +25,7 @@
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Password</mat-label>
+          <svg matPrefix lucideLock [size]="18" class="field-icon"></svg>
           <input matInput type="password" formControlName="password" required autocomplete="current-password" />
           @if (form.controls.password.hasError('required')) {
             <mat-error>Password is required.</mat-error>
