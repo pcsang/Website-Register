@@ -1,15 +1,18 @@
 # Backend Technical Specification
 
 **Scope:** This document describes the **current, actual implementation** of the Spring Boot backend at
-`backend/` in this repository, as of the completion of Phase 16 of the project roadmap (Spring Security —
-JWT Admin Auth), plus the subsequent Maven → Gradle build-tool migration.
-It is derived directly from the source code under `backend/src/main/java/com/register/backend/`, not from
-the roadmap document or `README.md`, which may describe future or partially-stale plans.
+`backend/` in this repository, as of the completion of **Plan 2 — Full DriveUp domain adoption** (D1–D6),
+which itself builds on roadmap Phases 1–23 (backend MVP through JWT auth, Gradle migration, backend/
+integration testing, Docker, Docker Compose, Neon/Flyway, and a live Render deployment). It is derived
+directly from the source code under `backend/src/main/java/com/register/backend/`, not from the roadmap
+document or `README.md`, which may describe future or partially-stale plans.
 
-For the full phased roadmap and original product spec, see
-[`java-spring-boot-angular-project-prompts.md`](../java-spring-boot-angular-project-prompts.md). For
-day-to-day working rules and local environment setup (portable JDK/Gradle/PostgreSQL commands), see
-[`CLAUDE.md`](../CLAUDE.md) and [`CHECKLIST.md`](../CHECKLIST.md).
+For the full original phased roadmap, see
+[`java-spring-boot-angular-project-prompts.md`](../java-spring-boot-angular-project-prompts.md). For the
+DriveUp UI/UX redesign that Plan 2 implements, see
+[`docs/planning/plan-2-full-redesign-driveup.md`](planning/plan-2-full-redesign-driveup.md). For day-to-day
+working rules and local environment setup, see [`CLAUDE.md`](../CLAUDE.md) and
+[`CHECKLIST.md`](../CHECKLIST.md).
 
 ---
 
@@ -20,21 +23,23 @@ Sourced from `backend/build.gradle`.
 | Component | Version / Detail |
 |---|---|
 | Language | Java 21 |
-| Build tool | Gradle (Gradle Wrapper 8.11.1; migrated from Maven — no `pom.xml`/`mvnw` in this repo anymore) |
+| Build tool | Gradle (Gradle Wrapper 8.11.1) |
 | Spring Boot | 3.4.1 (via `org.springframework.boot` + `io.spring.dependency-management` 1.1.7 plugins) |
 | Web layer | `spring-boot-starter-web` (Spring MVC, embedded Tomcat) |
 | Persistence | `spring-boot-starter-data-jpa` (Hibernate) |
+| Schema migrations | Flyway (`org.flywaydb:flyway-database-postgresql`) — see [Section 6.5](#65-database--jpa-configuration) |
 | Validation | `spring-boot-starter-validation` (Jakarta Bean Validation) |
 | Monitoring | `spring-boot-starter-actuator` |
 | Security | `spring-boot-starter-security` (Spring Security 6) |
 | JWT | `io.jsonwebtoken:jjwt-api`/`jjwt-impl`/`jjwt-jackson` 0.12.6 |
 | Database driver | `org.postgresql:postgresql` (`runtimeOnly`) |
-| Database | PostgreSQL |
+| Database | PostgreSQL (local dev/Docker Compose: a real Postgres instance; production: Neon) |
 | API docs | `springdoc-openapi-starter-webmvc-ui` 2.7.0 (Swagger UI + OpenAPI 3 JSON) |
-| Testing | `spring-boot-starter-test` (JUnit 5, Mockito, AssertJ, Spring Test) + `spring-security-test` |
-| Packaging | Spring Boot Gradle plugin (`bootJar` task, executable jar) |
+| Testing | `spring-boot-starter-test` (JUnit 5, Mockito, AssertJ, Spring Test) + `spring-security-test` + `com.h2database:h2` (integration tests only, see [Section 9](#9-testing)) |
+| Packaging | Spring Boot Gradle plugin (`bootJar` task, executable jar); also Dockerized (multi-stage, see [Section 10](#10-docker--deployment)) |
 
-Artifact coordinates: `com.register:backend:0.0.1-SNAPSHOT`.
+Artifact coordinates: `com.register:backend:0.0.1-SNAPSHOT`. Live production instance:
+`https://backed-website-register.onrender.com`.
 
 ---
 
@@ -45,16 +50,16 @@ The backend follows a strict **Controller → Service → Repository** layering 
 
 | Package | Purpose |
 |---|---|
-| `config/` | Application-wide configuration beans: CORS policy, OpenAPI/Swagger metadata, and `AdminUserSeeder` (startup seeding of the first admin account). |
+| `config/` | Application-wide configuration beans: CORS policy, OpenAPI/Swagger metadata, `AdminUserSeeder` (startup seeding of the first admin account). |
 | `controller/` | Thin REST controllers — validate input via annotations, delegate to exactly one service call, return a response DTO. No business logic or repository access. |
 | `dto/request/` | Inbound request body shapes (Java `record`s), carrying Jakarta Validation constraints. |
 | `dto/response/` | Outbound response body shapes (Java `record`s) — the only shapes the API ever returns; JPA entities are never serialized directly. |
-| `entity/` | JPA entities mapped to database tables (`Submission`, `AdminUser`). |
-| `enums/` | Shared enumerations used by entities/DTOs (currently `SubmissionStatus`). |
+| `entity/` | JPA entities mapped to database tables (`Submission`, `AdminUser`, `Course`, `DashboardSettings`). |
+| `enums/` | Shared enumerations used by entities/DTOs (`SubmissionStatus`, `LicenseClass`, `CourseAvailabilityStatus`). |
 | `exception/` | Custom exceptions, the global error response shape, and the centralized `@RestControllerAdvice` handler. |
 | `mapper/` | Manual entity ↔ DTO mapping classes (no MapStruct/ModelMapper — intentionally simple, hand-written). |
-| `repository/` | Spring Data JPA repository interfaces (query methods and one custom JPQL query). |
-| `security/` | JWT admin authentication: `JwtService`, `JwtAuthenticationFilter`, `SecurityConfig`, `RestAuthenticationEntryPoint`, `RestAccessDeniedHandler`. **No longer empty** — see [Section 6.3](#63-security-security-package). |
+| `repository/` | Spring Data JPA repository interfaces (derived queries, JPQL `@Query`s, and one native SQL projection query). |
+| `security/` | JWT admin authentication: `JwtService`, `JwtAuthenticationFilter`, `SecurityConfig`, `RestAuthenticationEntryPoint`, `RestAccessDeniedHandler`. |
 | `service/` | Business logic and `@Transactional` boundaries; the only layer that talks to repositories. |
 
 Root class: `BackendApplication` (`@SpringBootApplication`, standard `main()` entry point).
@@ -73,339 +78,245 @@ Table: `submissions`.
 | `fullName` | `String` | `full_name` | `NOT NULL` | `VARCHAR(200)` | `@NotBlank` | |
 | `email` | `String` | `email` | nullable | `VARCHAR(255)` | none on entity | Optional field |
 | `phone` | `String` | `phone` | nullable | `VARCHAR(30)` | none on entity | Optional field |
-| `message` | `String` | `message` | nullable | `TEXT` (`columnDefinition = "TEXT"`) | none on entity | Optional field |
-| `status` | `SubmissionStatus` | `status` | `NOT NULL` | `VARCHAR(20)`, `@Enumerated(EnumType.STRING)` | `@NotNull` | Always set server-side to `NEW` on creation; never client-supplied on create |
+| `message` | `String` | `message` | nullable | `TEXT` | none on entity | Optional field |
+| `status` | `SubmissionStatus` | `status` | `NOT NULL` | `VARCHAR(20)`, `@Enumerated(EnumType.STRING)` | `@NotNull` | Server-set to `PENDING_CONSULTATION` on creation; never client-supplied |
+| `courseId` | `Long` | `course_id` | nullable | `BIGINT`, FK → `courses(id)` | none on entity | Plain FK id field, not a JPA relationship (matches this project's style — no `@ManyToOne` anywhere); nullable, a submission can exist before a specific course is chosen |
 | `createdAt` | `LocalDateTime` | `created_at` | `NOT NULL`, `updatable = false` | — | — | Set via `@PrePersist` (`LocalDateTime.now()`), no time zone stored |
 | `updatedAt` | `LocalDateTime` | `updated_at` | `NOT NULL` | — | — | Set on insert and refreshed via `@PreUpdate` on every update |
 
 Timestamps are managed directly on the entity via `@PrePersist`/`@PreUpdate` lifecycle callbacks (not
-Spring Data JPA auditing) — a deliberate choice documented in `CLAUDE.md` for this small project.
+Spring Data JPA auditing) — a deliberate small-project choice, documented in `CLAUDE.md`.
 
-There are no `company` or `position` fields — these existed in the original roadmap spec but were removed
-by an explicit product decision during Phase 4 (see `CHECKLIST.md`), and `email` was made optional rather
-than required.
+There are no `company` or `position` fields (removed by an explicit product decision during Phase 4).
+Entity name deliberately kept as `Submission` (not renamed `Student`) through the DriveUp redesign — see
+`docs/planning/plan-2-full-redesign-driveup.md`'s "Decisions Needed" table.
 
 ### 3.2 `SubmissionStatus` (`enums/SubmissionStatus.java`)
 
-A plain Java enum with three values, persisted as `STRING` (not ordinal):
+**Four values** (migrated from an earlier 3-state model — see [Section 8.2](#82-v3extend_submissionssql)):
 
 ```
-NEW, IN_PROGRESS, COMPLETED
+PENDING_CONSULTATION, CONFIRMED, IN_PROGRESS, GRADUATED
 ```
 
-Used by `Submission.status`, `SubmissionResponse.status`, `UpdateSubmissionStatusRequest.status`, and as an
-optional query parameter on the admin list endpoint.
+`CONFIRMED`, `IN_PROGRESS`, and `GRADUATED` count as a "registered seat" for a course's `seatsRegistered`
+(see `CourseService.REGISTERED_STATUSES`) and toward the dashboard's estimated-revenue figure;
+`PENDING_CONSULTATION` is an inquiry only, not yet a confirmed registration. Used by `Submission.status`,
+`SubmissionResponse.status`, `UpdateSubmissionStatusRequest.status`, and as an optional query parameter on
+the admin list endpoint.
 
 ### 3.3 `AdminUser` (`entity/AdminUser.java`)
 
-Table: `admin_users`. Introduced in Phase 16 for JWT admin authentication.
+Table: `admin_users`. Unchanged since Phase 16.
 
 | Field | Java Type | Column | Nullable | Length / Type | Bean Validation | Notes |
 |---|---|---|---|---|---|---|
 | `id` | `Long` | `id` | — | — | — | `@Id`, `@GeneratedValue(strategy = IDENTITY)` |
 | `username` | `String` | `username` | `NOT NULL`, `UNIQUE` | `VARCHAR(100)` | `@NotBlank` | |
-| `passwordHash` | `String` | `password_hash` | `NOT NULL` | `VARCHAR(255)` | `@NotBlank` | **BCrypt hash only — plaintext password is never persisted** |
-| `role` | `String` | `role` | `NOT NULL` | `VARCHAR(30)` | `@NotBlank` | Plain string, e.g. `"ROLE_ADMIN"` — no enum, since only one role currently exists |
+| `passwordHash` | `String` | `password_hash` | `NOT NULL` | `VARCHAR(255)` | `@NotBlank` | **BCrypt hash only** |
+| `role` | `String` | `role` | `NOT NULL` | `VARCHAR(30)` | `@NotBlank` | Plain string, e.g. `"ROLE_ADMIN"` — no enum, only one role exists |
 | `createdAt` | `LocalDateTime` | `created_at` | `NOT NULL`, `updatable = false` | — | — | Set via `@PrePersist` |
 
-There is no signup/registration endpoint (internal admin tool) — see
-[`AdminUserSeeder`](#63-security-security-package) for how the first row gets created.
+No signup endpoint — see [`AdminUserSeeder`](#63-security-security-package).
+
+### 3.4 `Course` (`entity/Course.java`)
+
+Table: `courses`. Introduced in Plan 2 / D1 for the DriveUp course catalog.
+
+| Field | Java Type | Column | Nullable | Length / Type | Bean Validation | Notes |
+|---|---|---|---|---|---|---|
+| `id` | `Long` | `id` | — | — | — | `@Id`, `@GeneratedValue(strategy = IDENTITY)` |
+| `name` | `String` | `name` | `NOT NULL` | `VARCHAR(200)` | `@NotBlank` | |
+| `licenseClass` | `LicenseClass` | `license_class` | `NOT NULL` | `VARCHAR(20)`, `@Enumerated(EnumType.STRING)` | `@NotNull` | `B1` / `B2` / `C` |
+| `price` | `BigDecimal` | `price` | `NOT NULL` | `NUMERIC(12,2)` | `@NotNull @PositiveOrZero` | Money — never `float`/`double` |
+| `durationMonths` | `Integer` | `duration_months` | `NOT NULL` | `INTEGER` | `@NotNull @Positive` | |
+| `practiceHours` | `Integer` | `practice_hours` | `NOT NULL` | `INTEGER` | `@NotNull @Positive` | |
+| `description` | `String` | `description` | nullable | `TEXT` | none | |
+| `branch` | `String` | `branch` | nullable | `VARCHAR(100)` | none | Plain string field, not a separate `Branch` entity (deliberate — see the D2 "Decisions Needed" table) |
+| `teacherName` | `String` | `teacher_name` | nullable | `VARCHAR(200)` | none | Plain string field, not a separate `Teacher` entity (the mockup's "Giáo viên & Xe" module is explicitly out of scope) |
+| `seatsTotal` | `Integer` | `seats_total` | `NOT NULL` | `INTEGER` | `@NotNull @Positive` | |
+| `startDate` | `LocalDate` | `start_date` | `NOT NULL` | `DATE` | `@NotNull` | |
+| `createdAt` / `updatedAt` | `LocalDateTime` | `created_at` / `updated_at` | `NOT NULL` | — | — | Same `@PrePersist`/`@PreUpdate` pattern as `Submission` |
+
+**Deliberately not stored**: `seatsRegistered` and a derived availability status. Both are computed live
+(see [`CourseResponse`](#46-courseresponse-shape)) from `Submission.courseId`/`status` via a `COUNT`
+query, never a stored counter — storing one would create a second source of truth that could drift from
+the real submission rows.
+
+### 3.5 `DashboardSettings` (`entity/DashboardSettings.java`)
+
+Table: `dashboard_settings`. Introduced in Plan 2 / D3. A **single fixed-id row** (`id = 1`, not an
+auto-generated identity — there is only ever one row), seeded by `V4__add_dashboard_settings.sql`.
+
+| Field | Java Type | Column | Nullable | Length / Type | Notes |
+|---|---|---|---|---|---|
+| `id` | `Long` | `id` | — | fixed value `1` | |
+| `passRatePercent` | `BigDecimal` | `pass_rate_percent` | nullable | `NUMERIC(5,2)`, `CHECK (0–100)` | **Not derived from any real data** — nothing in this system tracks exam results. Admin-entered via `PATCH /api/admin/dashboard/settings`. `NULL` by default ("not yet configured"), deliberately not seeded with a fake realistic-looking number. |
+| `examCount` | `Integer` | `exam_count` | nullable | `INTEGER`, `CHECK (≥ 0)` | Optional companion figure for the "trên N lượt thi" framing. Also `NULL` by default. |
+| `updatedAt` | `LocalDateTime` | `updated_at` | `NOT NULL` | — | Touched on every insert/update |
 
 ---
 
 ## 4. REST API
 
-All endpoints are served under the embedded Tomcat server on port `8080` (`server.port` in
-`application.yml`). Controller groups: a public controller (`/api/submissions`), an admin controller group
-(`/api/admin/**`, now authenticated), an auth controller (`/api/auth/login`), plus a health endpoint.
+All endpoints are served under the embedded Tomcat server. `server.port` reads `${PORT:8080}` — `8080`
+locally/Docker Compose, whatever Render assigns in production. Controller groups: public (`/api/health`,
+`/api/submissions`, `/api/courses`, `/api/auth/login`), admin (`/api/admin/**`, JWT-protected).
 
 ### 4.1 `GET /api/health`
 
-**Controller:** `HealthController`
-
-Simple liveness check, unrelated to Spring Boot Actuator's own health endpoint. Public — no token.
-
-- **Response:** `200 OK`
-
-| Field | Type |
-|---|---|
-| `status` | `String` (always `"UP"`) |
-
-```json
-{ "status": "UP" }
-```
+**Controller:** `HealthController`. Simple liveness check, unrelated to Actuator's own health endpoint.
+Public. **Response:** `200 OK`, `{ "status": "UP" }`.
 
 ### 4.2 `POST /api/submissions`
 
-**Controller:** `SubmissionController` → `SubmissionService.createSubmission()`
-
-Public endpoint for end users to submit a contact/inquiry form. No authentication required — and the JWT
-is never sent here by the frontend either (see [`ui-specification.md`](ui-specification.md)).
+**Controller:** `SubmissionController` → `SubmissionService.createSubmission()`. Public — no JWT sent here
+either (see [`ui-specification.md`](ui-specification.md)).
 
 **Request body:** `CreateSubmissionRequest`
 
 | Field | Type | Validation | Required |
 |---|---|---|---|
 | `fullName` | `String` | `@NotBlank`, `@Size(max = 200)` | Yes |
-| `email` | `String` | `@Email` (custom message: "must be a valid email"), `@Size(max = 255)` | No |
+| `email` | `String` | `@Email`, `@Size(max = 255)` | No |
 | `phone` | `String` | `@Size(max = 30)` | No |
 | `message` | `String` | `@Size(max = 2000)` | No |
+| `courseId` | `Long` | none | No — added in D2; the public landing page resolves a selected license class to a `courseId` client-side before sending |
 
-**Behavior:** Maps the request to a new `Submission` entity, forces `status = NEW` server-side (the client
-cannot set status on creation), persists it, and returns the saved entity mapped to a `SubmissionResponse`.
+**Behavior:** Maps to a new `Submission`, forces `status = PENDING_CONSULTATION` server-side, persists,
+returns `SubmissionResponse`. **Response:** `201 Created`. **Errors:** `400` on validation failure.
 
-**Response:** `201 Created`, body is `SubmissionResponse` (see [4.6](#46-submissionresponse-shape) below).
+### 4.3 `GET /api/courses`
 
-**Error cases:** `400 Bad Request` with field errors if validation fails (see
-[Section 5](#5-global-error-handling)).
+**Controller:** `CourseController` → `CourseService.listCourses()`. **Public**, unauthenticated — read-only
+listing for the public landing page's pricing section.
 
-### 4.3 `POST /api/auth/login`
+**Query parameters:** standard pagination (`page`/`size`/`sort`, default `startDate` ascending — soonest
+courses first). No filters (that's the admin endpoint below).
 
-**Controller:** `AuthController` → `AuthService.login()`
+**Response:** `200 OK`, `PageResponse<CourseResponse>` (see [4.6](#46-courseresponse-shape)).
 
-Public endpoint. Authenticates an admin username/password and issues a signed JWT. Introduced in Phase 16.
+### 4.4 `POST /api/auth/login`
 
-**Request body:** `LoginRequest`
+Unchanged since Phase 16 — see [Section 6.3](#63-security-security-package) for the full flow.
 
-| Field | Type | Validation | Required |
-|---|---|---|---|
-| `username` | `String` | `@NotBlank` | Yes |
-| `password` | `String` | `@NotBlank` | Yes |
+### 4.5 Admin submission endpoints (`AdminSubmissionController`, all `ROLE_ADMIN`)
 
-**Behavior:** Looks up the `AdminUser` by username, then checks the password against the stored BCrypt
-hash via `PasswordEncoder.matches()`. Both "username not found" and "wrong password" throw the same
-`InvalidCredentialsException` with an identical message, so the API never reveals whether a given username
-exists. On success, `JwtService.generateToken()` issues an HS256 JWT (subject = username, custom claim
-`role` = the user's role, `iat`/`exp` set from `app.jwt.expiration-ms`).
-
-**Response:** `200 OK`, body is `LoginResponse`:
-
-| Field | Type | Description |
+| Method | Path | Notes |
 |---|---|---|
-| `token` | `String` | Signed JWT — send as `Authorization: Bearer <token>` on subsequent admin requests |
-| `username` | `String` | The authenticated admin's username |
-| `role` | `String` | The authenticated admin's role, e.g. `"ROLE_ADMIN"` |
+| `GET` | `/api/admin/submissions` | Query params: `search`, `status` (now one of the 4 new values), **`courseId`** (new in D2), `page`/`size`/`sort` (default `createdAt` desc). All filters applied via one JPQL query with `(:param IS NULL OR ...)` guards. |
+| `GET` | `/api/admin/submissions/{id}` | `404` if missing. |
+| `PATCH` | `/api/admin/submissions/{id}/status` | Body: `UpdateSubmissionStatusRequest {status}`. `400` on `null`/unrecognized status, `404` if missing. |
 
-**Error cases:** `401 Unauthorized` with the standard error shape (`message`: `"Invalid username or
-password"`) on bad credentials — see [Section 5](#5-global-error-handling).
+### 4.6 `CourseResponse` shape
 
-### 4.4 `GET /api/admin/submissions`
+Used by all course endpoints (public and admin).
 
-**Controller:** `AdminSubmissionController` → `SubmissionService.listSubmissions()`
-
-Admin endpoint listing submissions with server-side pagination, optional search, and optional status
-filter. **Requires `Authorization: Bearer <token>` with `ROLE_ADMIN`** (see
-[Section 6.3](#63-security-security-package)).
-
-**Query parameters:**
-
-| Param | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `search` | `String` | No | none | Case-insensitive substring match against `fullName`, `email`, or `phone` (OR'd together), executed as a `LIKE` at the database level |
-| `status` | `SubmissionStatus` (`NEW`/`IN_PROGRESS`/`COMPLETED`) | No | none (all statuses) | Exact-match status filter |
-| `page` | `int` | No | `0` | Zero-based page index (Spring Data `Pageable` binding) |
-| `size` | `int` | No | `20` | Page size; capped server-side at `100` (`spring.data.web.pageable.max-page-size`) |
-| `sort` | `String` | No | `createdAt,desc` | Sort field/direction, e.g. `?sort=fullName,asc`; an invalid field name returns `400` |
-
-**Behavior:** Both the search filter and the status filter are applied inside a single JPQL query
-(`SubmissionRepository.search`) using `(:param IS NULL OR ...)` guards, so filtering and paging both
-execute at the database level, not in application memory.
-
-**Response:** `200 OK`, body is `PageResponse<SubmissionResponse>`:
-
-| Field | Type | Description |
+| Field | Type | Notes |
 |---|---|---|
-| `content` | `List<SubmissionResponse>` | The page's rows |
-| `page` | `int` | Current zero-based page index |
-| `size` | `int` | Page size used |
-| `totalElements` | `long` | Total matching rows across all pages |
-| `totalPages` | `int` | Total number of pages |
+| `id` | `Long` | |
+| `name` | `String` | |
+| `licenseClass` | `LicenseClass` (`"B1"`/`"B2"`/`"C"`) | |
+| `price` | `BigDecimal` | |
+| `durationMonths` / `practiceHours` | `Integer` | |
+| `description` / `branch` / `teacherName` | `String` (nullable) | |
+| `seatsTotal` | `Integer` | |
+| `seatsRegistered` | `long` | **Computed live** — `COUNT` of `Submission`s for this course with a registered-seat status (`CONFIRMED`/`IN_PROGRESS`/`GRADUATED`); never stored |
+| `availabilityStatus` | `CourseAvailabilityStatus` (`AVAILABLE`/`FILLING_UP`/`FULL`) | Derived from `seatsRegistered`/`seatsTotal`: `< 70%` → `AVAILABLE`, `70–99%` → `FILLING_UP`, `100%+` → `FULL`. Vietnamese display strings ("Còn chỗ"/"Sắp đầy"/"Đã đầy") are a frontend concern, same convention as `SubmissionStatus`. |
+| `startDate` | `LocalDate` | |
+| `createdAt` / `updatedAt` | `LocalDateTime` | |
 
-**Error cases:** `401` (missing/invalid/expired token), `400` for an invalid `status` value or an invalid
-`sort` field name — see [Section 5](#5-global-error-handling).
+### 4.7 Admin course endpoints (`AdminCourseController`, all `ROLE_ADMIN`)
 
-### 4.5 `GET /api/admin/submissions/{id}`
-
-**Controller:** `AdminSubmissionController` → `SubmissionService.getSubmissionById()`
-
-Retrieves a single submission by its numeric ID. **Requires `Authorization: Bearer <token>` with
-`ROLE_ADMIN`.**
-
-**Path parameter:** `id` (`Long`)
-
-**Response:** `200 OK`, body is `SubmissionResponse`.
-
-**Error cases:** `401` (missing/invalid/expired token); `404 Not Found` if no submission exists with that
-ID (`ResourceNotFoundException`, message: `"Submission not found with id: {id}"`).
-
-### 4.6 `SubmissionResponse` shape
-
-Used by the create, list, get-by-id, and update-status endpoints.
-
-| Field | Type |
-|---|---|
-| `id` | `Long` |
-| `fullName` | `String` |
-| `email` | `String` (nullable) |
-| `phone` | `String` (nullable) |
-| `message` | `String` (nullable) |
-| `status` | `SubmissionStatus` (`"NEW"` / `"IN_PROGRESS"` / `"COMPLETED"`) |
-| `createdAt` | `LocalDateTime` (ISO-8601, no time zone) |
-| `updatedAt` | `LocalDateTime` (ISO-8601, no time zone) |
-
-### 4.7 `PATCH /api/admin/submissions/{id}/status`
-
-**Controller:** `AdminSubmissionController` → `SubmissionService.updateStatus()`
-
-Updates only the `status` field of an existing submission. **Requires `Authorization: Bearer <token>` with
-`ROLE_ADMIN`.**
-
-**Path parameter:** `id` (`Long`)
-
-**Request body:** `UpdateSubmissionStatusRequest`
-
-| Field | Type | Validation | Required |
+| Method | Path | Body | Notes |
 |---|---|---|---|
-| `status` | `SubmissionStatus` | `@NotNull` | Yes |
+| `GET` | `/api/admin/courses` | — | Query params: `licenseClass`, `branch` (both optional, exact-match — **no status/availability filter**, that's derived data the repository can't filter on directly), `page`/`size`/`sort` (default `createdAt` desc). |
+| `GET` | `/api/admin/courses/{id}` | — | `404` if missing. |
+| `POST` | `/api/admin/courses` | `CreateCourseRequest` | `201 Created`. |
+| `PATCH` | `/api/admin/courses/{id}` | `UpdateCourseRequest` | Full-replacement update (all editable fields, same validation as create) — not a sparse partial patch. `404` if missing. |
 
-**Behavior:** Looks up the submission (404 if missing), sets the new status, and persists it via
-`saveAndFlush()` (rather than `save()`) so that the `@PreUpdate` callback bumping `updatedAt` runs before
-the response is built — avoiding a stale `updatedAt` in the response.
+`CreateCourseRequest`/`UpdateCourseRequest` fields mirror `Course`'s DB constraints exactly (see
+[3.4](#34-course-entitycoursejava)): `name`, `licenseClass`, `price`, `durationMonths`, `practiceHours`,
+`description`, `branch`, `teacherName`, `seatsTotal`, `startDate`.
 
-**Response:** `200 OK`, body is `SubmissionResponse` reflecting the new status and refreshed `updatedAt`.
+### 4.8 Admin dashboard endpoints (`DashboardController`, all `ROLE_ADMIN`)
 
-**Error cases:**
-- `401` (missing/invalid/expired token).
-- `404 Not Found` if the submission doesn't exist.
-- `400 Bad Request` if `status` is `null` (bean validation) **or** if the JSON body contains an
-  unrecognized enum string, e.g. `{"status": "BOGUS"}` (a Jackson deserialization failure, handled
-  separately from bean validation — see [Section 5](#5-global-error-handling)).
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/admin/dashboard/summary` | **Unchanged endpoint, changed shape** — see [4.9](#49-dashboardsummaryresponse-shape-updated-in-d2). |
+| `GET` | `/api/admin/dashboard/overview` | New in D3 — see [4.10](#410-dashboardoverviewresponse-shape-new-in-d3). |
+| `GET` | `/api/admin/dashboard/settings` | Returns the current `DashboardSettingsResponse` (`passRatePercent`, `examCount`, `updatedAt` — `null` fields if never configured). |
+| `PATCH` | `/api/admin/dashboard/settings` | Body: `UpdateDashboardSettingsRequest {passRatePercent, examCount}`. Overwrites both. |
 
-### 4.8 `GET /api/admin/dashboard/summary`
+### 4.9 `DashboardSummaryResponse` shape (updated in D2)
 
-**Controller:** `DashboardController` → `DashboardService.getSummary()`
-
-Returns aggregate counts for the admin dashboard, computed via five separate `COUNT` queries against
-`SubmissionRepository` (no row data loaded). **Requires `Authorization: Bearer <token>` with `ROLE_ADMIN`.**
-
-**Response:** `200 OK`, body is `DashboardSummaryResponse`:
-
-| JSON field | Java field | Type | Description |
-|---|---|---|---|
-| `total` | `total` | `long` | Total submissions (`count()`) |
-| `new` | `newCount` | `long` | Count with `status = NEW` (JSON key is `new`, via `@JsonProperty("new")`, since `new` is a Java keyword) |
-| `inProgress` | `inProgress` | `long` | Count with `status = IN_PROGRESS` |
-| `completed` | `completed` | `long` | Count with `status = COMPLETED` |
-| `submittedToday` | `submittedToday` | `long` | Count with `createdAt` in `[startOfToday, startOfTomorrow)`, server-local time, matching how `createdAt` is populated (no time zone stored) |
+**Breaking change** from the original 3-state shape, necessary fallout of `SubmissionStatus`'s enum
+change (D2) — not itself part of D3's "overview" work.
 
 ```json
 {
   "total": 42,
-  "new": 10,
+  "pendingConsultation": 10,
+  "confirmed": 3,
   "inProgress": 5,
-  "completed": 27,
+  "graduated": 24,
   "submittedToday": 3
 }
 ```
 
-**Error cases:** `401` (missing/invalid/expired token).
+Computed via five separate `COUNT` queries (one per status + total), same pattern as before.
 
-### 4.9 Endpoint summary table
+### 4.10 `DashboardOverviewResponse` shape (new in D3)
 
-| Method | Path | Auth | Request body | Success status |
-|---|---|---|---|---|
-| `GET` | `/api/health` | None | — | `200` |
-| `POST` | `/api/submissions` | None | `CreateSubmissionRequest` | `201` |
-| `POST` | `/api/auth/login` | None | `LoginRequest` | `200` |
-| `GET` | `/api/admin/submissions` | **`ROLE_ADMIN`** | — (query params) | `200` |
-| `GET` | `/api/admin/submissions/{id}` | **`ROLE_ADMIN`** | — | `200` |
-| `PATCH` | `/api/admin/submissions/{id}/status` | **`ROLE_ADMIN`** | `UpdateSubmissionStatusRequest` | `200` |
-| `GET` | `/api/admin/dashboard/summary` | **`ROLE_ADMIN`** | — | `200` |
+```json
+{
+  "monthlyRegistrations": [
+    { "month": "2026-04", "count": 0 },
+    { "month": "2026-09", "count": 23 }
+  ],
+  "upcomingCourses": [ /* CourseResponse[] */ ],
+  "estimatedRevenueThisMonth": 128100000.00,
+  "settings": { "passRatePercent": 98.2, "examCount": 640, "updatedAt": "2026-09-18T20:08:10" }
+}
+```
 
-`/swagger-ui.html`, `/v3/api-docs`, and `/actuator/health`/`/actuator/info` remain public (unauthenticated)
-— only `/api/admin/**` is protected. See [Section 6.3](#63-security-security-package) for how.
+| Field | Computation |
+|---|---|
+| `monthlyRegistrations` | Last 6 calendar months including the current one, oldest first. Grouped via a **native SQL** query (`date_trunc('month', created_at)`, `SubmissionRepository.countRegistrationsByMonthSince`) — months with zero submissions are absent from the SQL result and zero-filled by `DashboardService` so the response always has exactly 6 entries. |
+| `upcomingCourses` | Courses with `startDate >= today`, soonest first, capped at `app.dashboard.upcoming-courses-limit` (`DASHBOARD_UPCOMING_COURSES_LIMIT` env var, default `4`). Reuses `CourseResponse` — no separate DTO. |
+| `estimatedRevenueThisMonth` | Sum of `Course.price` × count, for submissions created since the start of the current calendar month with a registered-seat status and a non-null `courseId`. **An estimate, not real payment data** — this system has no payment/transaction concept. |
+| `settings` | The current `DashboardSettings` row, verbatim. |
+
+### 4.11 Endpoint summary table
+
+| Method | Path | Auth | Success |
+|---|---|---|---|
+| `GET` | `/api/health` | None | `200` |
+| `POST` | `/api/submissions` | None | `201` |
+| `GET` | `/api/courses` | None | `200` |
+| `POST` | `/api/auth/login` | None | `200` |
+| `GET` | `/api/admin/submissions` | `ROLE_ADMIN` | `200` |
+| `GET` | `/api/admin/submissions/{id}` | `ROLE_ADMIN` | `200` |
+| `PATCH` | `/api/admin/submissions/{id}/status` | `ROLE_ADMIN` | `200` |
+| `GET` | `/api/admin/courses` | `ROLE_ADMIN` | `200` |
+| `GET` | `/api/admin/courses/{id}` | `ROLE_ADMIN` | `200` |
+| `POST` | `/api/admin/courses` | `ROLE_ADMIN` | `201` |
+| `PATCH` | `/api/admin/courses/{id}` | `ROLE_ADMIN` | `200` |
+| `GET` | `/api/admin/dashboard/summary` | `ROLE_ADMIN` | `200` |
+| `GET` | `/api/admin/dashboard/overview` | `ROLE_ADMIN` | `200` |
+| `GET`/`PATCH` | `/api/admin/dashboard/settings` | `ROLE_ADMIN` | `200` |
+
+`/swagger-ui.html`, `/v3/api-docs`, `/actuator/health`/`/actuator/info` also remain public.
 
 ---
 
 ## 5. Global Error Handling
 
-**Source:** `exception/GlobalExceptionHandler.java` (`@RestControllerAdvice`), `exception/ErrorResponse.java`,
-`exception/ResourceNotFoundException.java`, `exception/InvalidCredentialsException.java`.
-
-### 5.1 Error response shape
-
-`ErrorResponse` is a `record`, serialized with `@JsonInclude(NON_NULL)` so `errors` is omitted entirely
-when there are no field-level errors:
-
-| Field | Type | Present when |
-|---|---|---|
-| `status` | `int` | Always — HTTP status code |
-| `message` | `String` | Always — human-readable summary |
-| `errors` | `Map<String, String>` | Only on Bean Validation failures (field name → message) |
-| `timestamp` | `LocalDateTime` | Always — set at handler execution time |
-| `path` | `String` | Always — the request URI that failed |
-
-This exact shape is also used for `401`/`403` responses produced *inside* the Spring Security filter chain
-(see [Section 6.3](#63-security-security-package)) — those don't go through
-`GlobalExceptionHandler` (it never sees filter-chain exceptions), but two dedicated handler classes write
-the identical JSON shape by hand so the whole API stays consistent.
-
-### 5.2 Exception → response mapping
-
-| Exception | HTTP Status | `message` | `errors` | Notes |
-|---|---|---|---|---|
-| `MethodArgumentNotValidException` (Jakarta Bean Validation failure on `@Valid @RequestBody`) | `400` | `"Validation failed"` | field → message map | e.g. blank `fullName`, invalid `email` format, oversized field |
-| `InvalidCredentialsException` (bad login) | `401` | `"Invalid username or password"` | omitted | Same message whether the username doesn't exist or the password is wrong |
-| `ResourceNotFoundException` (thrown explicitly by services) | `404` | Exception message, e.g. `"Submission not found with id: 5"` | omitted | Used for both `GET /{id}` and `PATCH /{id}/status` on a missing ID |
-| `NoResourceFoundException` (Spring's "no route matched") | `404` | `"No handler found for {METHOD} {path}"` | omitted | Prevents unmatched routes from being swallowed by the generic `500` handler |
-| `MethodArgumentTypeMismatchException` (query/path param can't convert to target type, e.g. `?status=BOGUS`) | `400` | `"Invalid value for parameter '{name}'"` | omitted | |
-| `InvalidDataAccessApiUsageException` (e.g. invalid `?sort=` property name) | `400` | `"Invalid sort field"` | omitted | Spring Data's wrapping of Hibernate's unknown-attribute failure |
-| `HttpMessageNotReadableException` (malformed JSON body, or an unrecognized enum string like `{"status":"BOGUS"}`) | `400` | `"Malformed request body"` | omitted | Fires before Bean Validation runs (Jackson deserialization failure) |
-| Any other `Exception` (catch-all) | `500` | `"An unexpected error occurred"` | omitted | Full exception is logged server-side via SLF4J (`log.error`) with stack trace; **never** leaked to the client |
-
-**Outside `GlobalExceptionHandler`** (written directly by security filter-chain components, same JSON
-shape):
-
-| Source | HTTP Status | `message` |
-|---|---|---|
-| `RestAuthenticationEntryPoint` (missing/invalid/expired token on a protected route) | `401` | `"Authentication required"` |
-| `RestAccessDeniedHandler` (valid token, wrong role — not currently reachable since only one role exists) | `403` | `"Access denied"` |
-
-### 5.3 Example: validation error
-
-```json
-{
-  "status": 400,
-  "message": "Validation failed",
-  "errors": {
-    "fullName": "must not be blank"
-  },
-  "timestamp": "2026-09-14T10:15:30",
-  "path": "/api/submissions"
-}
-```
-
-### 5.4 Example: not found
-
-```json
-{
-  "status": 404,
-  "message": "Submission not found with id: 999",
-  "timestamp": "2026-09-14T10:15:30",
-  "path": "/api/admin/submissions/999"
-}
-```
-
-### 5.5 Example: unauthenticated admin request
-
-```json
-{
-  "status": 401,
-  "message": "Authentication required",
-  "timestamp": "2026-09-14T10:15:30",
-  "path": "/api/admin/dashboard/summary"
-}
-```
+**Unchanged since Phase 16** — see `exception/GlobalExceptionHandler.java`, `ErrorResponse.java`. Shape:
+`{status, message, errors, timestamp, path}` (`errors` omitted unless present). Every new endpoint in
+Plan 2 (Course, Dashboard overview/settings) funnels through the same handler — `ResourceNotFoundException`
+→ `404` (e.g. "Course not found with id: {id}"), Bean Validation failures → `400` with field errors, same
+as `Submission`. No new exception types were needed.
 
 ---
 
@@ -413,147 +324,172 @@ shape):
 
 ### 6.1 CORS (`config/CorsConfig.java`)
 
-- Implements `WebMvcConfigurer.addCorsMappings`, applied to `/api/**`.
-- Allowed origins are bound from `app.cors.allowed-origins` (`application.yml`), itself backed by the
-  `ALLOWED_ORIGINS` environment variable, defaulting to `http://localhost:4200`. Value is split on `,` to
-  support multiple origins.
-- **No wildcard (`*`) origin** — only the configured explicit origin(s) are ever echoed back.
-- Allowed methods: `GET, POST, PATCH, OPTIONS`.
-- Allowed headers: `Content-Type, Authorization` (`Authorization` is now actively used, by the JWT bearer
-  token).
-- `allowCredentials` is left unset (default `false`) — auth is a bearer token via the `Authorization`
-  header, not cookies, so CORS credentials mode isn't needed. `SecurityConfig` explicitly permits `OPTIONS`
-  preflight requests without authentication so CORS preflight to protected `/api/admin/**` routes isn't
-  itself blocked by the security filter chain.
+Unchanged since Phase 10/16 — `app.cors.allowed-origins` (`ALLOWED_ORIGINS` env var), no wildcard, methods
+`GET, POST, PATCH, OPTIONS`, headers `Content-Type, Authorization`.
 
 ### 6.2 OpenAPI / Swagger (`config/OpenApiConfig.java`)
 
-- `springdoc-openapi-starter-webmvc-ui` is on the classpath and a single `OpenAPI` bean sets top-level
-  metadata: title `"Information Collection & Admin Management System API"`, description, version `"v1"`.
-- No per-endpoint annotations are used in controllers/DTOs — the spec is generated automatically from the
-  existing Spring MVC mappings, request/response types, and Bean Validation annotations.
-- With default springdoc settings, this exposes the machine-readable spec at `/v3/api-docs` and an
-  interactive UI at `/swagger-ui.html` (or `/swagger-ui/index.html`) when the app is running. Both remain
-  public — `SecurityConfig` only protects `/api/admin/**`.
+Unchanged — auto-generated spec at `/v3/api-docs`, UI at `/swagger-ui.html`, both public.
 
 ### 6.3 Security (`security/` package)
 
-Implemented in Phase 16. Stateless JWT authentication protecting `/api/admin/**`.
-
-**`SecurityConfig`** (`@Configuration`, `@EnableWebSecurity`) builds the `SecurityFilterChain`:
-- CSRF disabled (not applicable — stateless, no cookies).
-- `SessionCreationPolicy.STATELESS` — no `HttpSession` ever created.
-- Authorization rule: `OPTIONS` always permitted (CORS preflight); `/api/admin/**` requires
-  `hasRole("ADMIN")` (i.e. authority `ROLE_ADMIN`); everything else `permitAll()` — a deliberate allowlist
-  choice so routes that were already public (health, Swagger, actuator, login, the public submission
-  endpoint) aren't accidentally locked down by this phase.
-- `JwtAuthenticationFilter` is registered via `addFilterBefore(..., UsernamePasswordAuthenticationFilter.class)`.
-- `RestAuthenticationEntryPoint`/`RestAccessDeniedHandler` wired in for 401/403 (see
-  [Section 5.2](#52-exception--response-mapping)).
-- Exposes the app's single `PasswordEncoder` bean (`BCryptPasswordEncoder`).
-- **No `UserDetailsService`/`AuthenticationManager` bean** — login is handled directly in `AuthService`
-  against `AdminUserRepository` + the password encoder, and per-request authentication trusts the signed
-  JWT's own claims with no database lookup. This is a deliberate simplification for a single-role admin
-  app; it also means there is **no server-side token revocation** — an issued token remains valid until it
-  expires, there is no logout-side blacklist.
-
-**`JwtService`** — encodes/decodes the HS256 JWT. Signing key from `app.jwt.secret` (`JWT_SECRET` env var,
-must be ≥32 bytes for HS256), expiration from `app.jwt.expiration-ms` (`JWT_EXPIRATION_MS`, default
-`3600000` = 1 hour). Token subject = username, custom claim `role` = the user's role string.
-
-**`JwtAuthenticationFilter`** (`OncePerRequestFilter`) — on every request, if an `Authorization: Bearer
-<token>` header is present and parses/verifies successfully, populates `SecurityContextHolder` with a
-`UsernamePasswordAuthenticationToken` built from the token's `sub`/`role` claims. A missing, malformed, or
-expired token is **not** treated as an error here — the request simply continues unauthenticated, and it's
-`SecurityConfig`'s authorization rules (public endpoint proceeds; protected endpoint gets rejected by
-`RestAuthenticationEntryPoint`) that decide the outcome.
-
-**`AdminUserSeeder`** (`config/AdminUserSeeder.java`, an `ApplicationRunner`) — since there is no
-signup/registration endpoint, this creates exactly one `AdminUser` on startup from
-`app.admin.username`/`app.admin.password` (`ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars), hashed with the
-same `PasswordEncoder`, **only if the `admin_users` table is currently empty**. Safe on every restart — it
-never overwrites or duplicates an existing account.
-
-**Login flow** (`POST /api/auth/login` → `AuthController` → `AuthService.login()`): look up `AdminUser` by
-username → `PasswordEncoder.matches()` against the stored hash → on success, `JwtService.generateToken()`
-→ `LoginResponse{token, username, role}`. On failure (username not found, or password mismatch), the same
-`InvalidCredentialsException`/message either way, so the API never reveals whether a username exists.
-
-**Per-request flow** for a protected route: `JwtAuthenticationFilter` parses the bearer token (if present)
-→ `SecurityConfig`'s `hasRole("ADMIN")` check on `/api/admin/**` → controller runs normally if authorized,
-or `RestAuthenticationEntryPoint`/`RestAccessDeniedHandler` writes the 401/403 body otherwise.
+Unchanged since Phase 16 — stateless JWT, `SecurityConfig` protects `/api/admin/**` with `hasRole("ADMIN")`,
+everything else `permitAll()`. The new `/api/admin/courses/**` and `/api/admin/dashboard/**` routes fall
+under the existing `/api/admin/**` rule automatically — no `SecurityConfig` changes were needed for Plan 2.
+`/api/courses` (public) falls under the existing catch-all `permitAll()`. See the Phase 16 login/
+per-request flow description in this doc's git history, or `CLAUDE.md`, for the full walkthrough — not
+repeated here since nothing changed.
 
 ### 6.4 Actuator
 
-`spring-boot-starter-actuator` is a dependency; `application.yml` exposes only `health` and `info` over
-the web (`management.endpoints.web.exposure.include: health,info`). No custom actuator configuration
-beyond this exists. Actuator endpoints remain public — `SecurityConfig` only protects `/api/admin/**`.
+Unchanged — `health`/`info` exposed, public.
 
 ### 6.5 Database / JPA configuration
 
-From `application.yml`:
+**Schema ownership changed in Phase 22**: Flyway now owns the schema; `spring.jpa.hibernate.ddl-auto` is
+`validate` (Hibernate only checks entities match the DB, never alters it) in the default/`prod` profiles.
+Migrations live in `backend/src/main/resources/db/migration/`:
 
-- Datasource: PostgreSQL via `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` env vars (local defaults:
-  `jdbc:postgresql://localhost:5432/information_db`, `postgres` / `postgres`).
-- `spring.jpa.hibernate.ddl-auto: update` — schema is auto-updated (additive only; see the "Schema
-  caveat" in `CLAUDE.md`).
-- `show-sql: true` with `format_sql: true` (SQL logged for local development/debugging).
-- `spring.data.web.pageable`: `default-page-size: 20`, `max-page-size: 100`.
+| Migration | Adds |
+|---|---|
+| `V1__init_schema.sql` | Baseline: `submissions`, `admin_users` (Phase 22) |
+| `V2__add_courses_table.sql` | `courses` table (D1) |
+| `V3__extend_submissions.sql` | `submissions.course_id` FK + 4-state status remap, including a **real data migration** for any existing rows (D2) — see [Section 8.2](#82-v3extend_submissionssql) |
+| `V4__add_dashboard_settings.sql` | `dashboard_settings` table, single seeded row (D3) |
+| `V5__seed_landing_courses.sql` | Seeds the 3 fixed course packages (B1/B2/C) shown on the public landing page, so that section isn't empty on a fresh database (D6) |
 
-### 6.6 Security-related environment variables
+`spring.flyway.baseline-on-migrate: true` — lets Flyway adopt a pre-existing (pre-Flyway) database without
+failing on "table already exists."
+
+**The `test` Spring profile is the one exception**: `application-test.yml` (H2, in-memory,
+`MODE=PostgreSQL`) disables Flyway (`spring.flyway.enabled: false`) and keeps `ddl-auto: create-drop`,
+generating schema straight from the entities each test run — deliberate, per the Phase 19 hermetic-test
+decision (H2 needs no migration history, and letting Hibernate generate its schema directly from the
+*current* entity definitions is simpler and always in sync).
+
+Datasource: `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` env vars (local default:
+`jdbc:postgresql://localhost:5432/information_db`, `postgres`/`postgres`; production: a Neon connection
+string with `?sslmode=require`).
+
+### 6.6 Production profile (`application-prod.yml`, Phase 22)
+
+Activated via `SPRING_PROFILES_ACTIVE=prod` (set on Render): `show-sql: false`, `open-in-view: false`,
+Hikari `maximum-pool-size: 5` (sized for Neon's free-tier connection limits).
+
+### 6.7 Environment variables
 
 | Variable | Default (local dev only) | Purpose |
 |---|---|---|
-| `JWT_SECRET` | a placeholder string, clearly marked non-production | HMAC signing secret for admin JWTs |
-| `JWT_EXPIRATION_MS` | `3600000` (1 hour) | Token lifetime |
-| `ADMIN_USERNAME` | `admin` | Seeded admin username |
-| `ADMIN_PASSWORD` | a placeholder string, clearly marked non-production | Seeded admin password (BCrypt-hashed before storage, plaintext never persisted) |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | local Postgres | Datasource |
+| `ALLOWED_ORIGINS` | `http://localhost:4200` | CORS |
+| `JWT_SECRET` | dev-only placeholder | JWT signing (≥32 bytes) |
+| `JWT_EXPIRATION_MS` | `3600000` (1h) | Token lifetime |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / dev-only placeholder | Seeded admin account |
+| `PORT` | `8080` | Listen port — Render assigns this dynamically |
+| `DASHBOARD_UPCOMING_COURSES_LIMIT` | `4` | Rows in the overview's upcoming-courses list |
 
-**Always override all four outside local development** — see `README.md` for the full env var table
-shared with the datasource/CORS variables.
+**Always override the non-`PORT`/non-limit ones outside local development** — see `README.md`.
 
 ---
 
 ## 7. Mapping & Service Layer Notes
 
-- `SubmissionMapper` (`mapper/`) is a plain `@Component` with two hand-written methods: `toEntity` (request
-  → new entity, used only for creation) and `toResponse` (entity → response DTO). No library-based mapping
-  is used anywhere in the project.
-- `SubmissionService`, `DashboardService`, and `AuthService` are the three service classes. All use
-  constructor injection exclusively; read methods are `@Transactional(readOnly = true)` and mutating
-  methods `@Transactional`.
-- `SubmissionRepository` extends `JpaRepository<Submission, Long>` and adds three query methods:
-  `countByStatus`, `countByCreatedAtGreaterThanEqualAndCreatedAtLessThan` (both Spring Data derived
-  queries), and `search` (a hand-written JPQL `@Query` combining optional search + status filters with
-  `(:param IS NULL OR ...)` guards, using `CAST(:search AS string)` to avoid a PostgreSQL/Hibernate
-  `lower(bytea)` type-inference failure on a null bind parameter).
-- `AdminUserRepository` extends `JpaRepository<AdminUser, Long>` and adds `findByUsername` (used by login)
-  and relies on the inherited `count()` (used by `AdminUserSeeder` to check "is the table empty").
+- `SubmissionMapper`, `CourseMapper` (`mapper/`) — plain `@Component`s, hand-written `toEntity`/`toResponse`
+  (and `CourseMapper.applyUpdate` for the admin update endpoint). No library-based mapping anywhere.
+- Five service classes: `SubmissionService`, `DashboardService`, `AuthService`, `CourseService` (D1),
+  all constructor injection, `@Transactional(readOnly = true)` on reads, `@Transactional` on writes.
+- `CourseService.REGISTERED_STATUSES` (`CONFIRMED`/`IN_PROGRESS`/`GRADUATED`) is `public static final` and
+  reused as-is by `DashboardService`'s revenue calculation — one source of truth for "what counts as a
+  registered seat," not duplicated.
+- `SubmissionRepository` — see [4.5](#45-admin-submission-endpoints-adminsubmissioncontroller-all-role_admin)
+  for `search`; also `countByCourseIdAndStatusIn` (a course's live `seatsRegistered`),
+  `findByStatusInAndCreatedAtGreaterThanEqualAndCreatedAtLessThanAndCourseIdIsNotNull` (revenue calc),
+  `countRegistrationsByMonthSince` (native SQL, month-grouped chart data).
+- `CourseRepository.search(licenseClass, branch, pageable)` — same `(:param IS NULL OR ...)` JPQL-guard
+  pattern as `SubmissionRepository.search`.
 
 ---
 
-## 8. How to Run / Verify
+## 8. Notable Implementation Details Worth Knowing
 
-Full commands (portable JDK/PostgreSQL setup, build, run, test) are documented in
-[`CLAUDE.md`](../CLAUDE.md)'s "Commands" section — not duplicated here to avoid drift between the two
-documents. In short: `cd backend`, set `JAVA_HOME`/`PATH` to the portable JDK if no system JDK 21 is
-available, ensure PostgreSQL is reachable, then `./gradlew bootRun` (or `./gradlew clean build` to build
-and test). No system-wide Gradle install is needed — the committed Gradle Wrapper (`gradlew`/`gradlew.bat`)
-self-bootstraps its pinned version on first run.
+### 8.1 `V3__extend_submissions.sql` — CHECK constraint ordering
+
+PostgreSQL enforces a `CHECK` constraint on **every row-level `UPDATE`, not just at commit**. The old
+3-state constraint had to be **dropped before** the data remap (`NEW`→`PENDING_CONSULTATION`,
+`COMPLETED`→`GRADUATED`), not after — remapping a row to a value the *old* constraint didn't allow would
+otherwise fail mid-migration. This was actually proven against real rows in this project's dev database
+(the naive ordering failed with a real constraint-violation error, rolled back cleanly since Flyway runs
+each migration in one transaction, then was fixed) before landing on the correct order. Worth remembering
+for any future status-like enum migration.
+
+### 8.2 `seatsRegistered` / estimated revenue — always computed, never stored
+
+Both `Course.seatsRegistered` (via `CourseResponse`) and the dashboard's `estimatedRevenueThisMonth` are
+computed at read time from `Submission` rows, specifically to avoid a second source of truth that could
+drift. This was a deliberate two-phase rollout: D1 built `Course` without these fields at all (they
+couldn't be computed yet, `Submission.courseId` didn't exist), then D2 wired them up once it did — rather
+than adding a placeholder `0` that could be mistaken for real data.
+
+### 8.3 Estimated revenue and pass rate are not real data
+
+Neither figure reflects actual transactions or exam results — this system has no payment or exam-tracking
+concept. `estimatedRevenueThisMonth` is a projection (course price × registered-seat count); `passRatePercent`
+is manually entered by an admin. Both are labeled as such in Javadoc; don't mistake either for ground truth
+when reasoning about the data model.
 
 ---
 
-## 9. Not Yet Implemented
+## 9. Testing
 
-- **Backend unit/integration test phases (roadmap Phases 18–19)** — beyond what already exists
-  (`BackendApplicationTests`, `HealthControllerTest`, `GlobalExceptionHandlerTest`, `SubmissionServiceTest`,
-  `DashboardServiceTest`, `SecurityIntegrationTest`), the roadmap's dedicated unit-test and integration-test
-  phases haven't been done as their own scoped pass.
-- **Docker / deployment (roadmap Phases 20–24)** — no `Dockerfile`, no Docker Compose, no production
-  database (Neon) or hosting (Render/Vercel) configured yet.
-- **Token revocation** — an issued JWT is valid until it expires; there is no server-side session/blacklist
-  to invalidate a token early (e.g. on logout, the frontend just discards its local copy — the token itself
-  remains technically valid until expiry if captured beforehand). Documented as an accepted tradeoff for
-  this app's size in `CHECKLIST.md`'s Phase 16 log.
-- No rate limiting, request logging/auditing beyond SLF4J error logs, or additional actuator endpoints
-  beyond `health`/`info` are configured.
+Full suite: `./gradlew clean build` (or `./gradlew test`) — **88 tests**, all passing as of Plan 2 D6.
+
+| Class | Layer |
+|---|---|
+| `BackendApplicationTests` | Full context load, real Postgres |
+| `HealthControllerTest`, `SubmissionControllerTest`, `AdminSubmissionControllerTest`, `AuthControllerTest`, `DashboardControllerTest`, `CourseControllerTest`, `AdminCourseControllerTest` | `@WebMvcTest` slices, mocked services, `@MockitoBean` |
+| `GlobalExceptionHandlerTest` | Exception → response shape mapping |
+| `SecurityIntegrationTest` | Full `@SpringBootTest`, real filter chain, real Postgres — login + per-request auth flows |
+| `SubmissionApiIntegrationTest` | Full `@SpringBootTest` + `MockMvc`, **H2** (`test` profile) — real service/repository/Hibernate stack for the Submission API surface, proven hermetic (passes with local Postgres stopped) |
+| `SubmissionServiceTest`, `DashboardServiceTest`, `CourseServiceTest`, `CourseMapperTest` | Mockito unit tests |
+
+H2 was chosen over PostgreSQL Testcontainers for `SubmissionApiIntegrationTest` because this dev machine
+has no Docker — documented tradeoff (H2 isn't a perfect PostgreSQL dialect match; revisit with
+Testcontainers if Docker becomes available) in that test class's own Javadoc.
+
+---
+
+## 10. Docker & Deployment
+
+- **`backend/Dockerfile`** (Phase 20) — multi-stage: `gradle:8.11.1-jdk21` build stage → `eclipse-temurin:21-jre-alpine`
+  runtime stage, non-root user, `EXPOSE 8080`.
+- **`docker-compose.yml`** (repo root, Phase 21) — `backend` + `postgres:16` services for local Docker-based
+  development; `DB_URL` uses the Compose service name (`postgres`), not `localhost`.
+- **Production**: deployed to Render (`https://backed-website-register.onrender.com`), backed by Neon
+  PostgreSQL. `SPRING_PROFILES_ACTIVE=prod` set on Render. Full walkthrough:
+  [`docs/deployment/render-backend-deployment.md`](deployment/render-backend-deployment.md).
+
+---
+
+## 11. How to Run / Verify
+
+Full commands in [`CLAUDE.md`](../CLAUDE.md)'s "Commands" section. In short: `cd backend`, set
+`JAVA_HOME`/`PATH` to the portable JDK if no system JDK 21 is available, ensure PostgreSQL is reachable
+(local: `tools/pgsql`; **must be UTF8-encoded** — see `CLAUDE.md`'s "Local PostgreSQL" section for why this
+matters, discovered when `V5`'s Vietnamese seed data hit a WIN1252-encoded local cluster), then
+`./gradlew bootRun` (or `./gradlew clean build` to build and test).
+
+---
+
+## 12. Not Yet Implemented
+
+- **Token revocation** — an issued JWT is valid until it expires; no server-side session/blacklist.
+  Accepted tradeoff for this app's size (Phase 16 decision).
+- **Real payment/exam tracking** — revenue and pass-rate are estimates/admin-entered, by design (see
+  [Section 8.3](#83-estimated-revenue-and-pass-rate-are-not-real-data)) — not a gap to "fix," a deliberate
+  scope boundary from `plan-2-full-redesign-driveup.md`.
+- **"Giáo viên & Xe" (teachers/vehicles) as real entities** — `Course.teacherName` is a plain string;
+  explicitly out of scope per the plan.
+- **PostgreSQL Testcontainers** for `SubmissionApiIntegrationTest` — currently H2, would need Docker on the
+  dev machine.
+- No rate limiting, request logging/auditing beyond SLF4J error logs.
+- Roadmap Phases 25–26 (Production Security Review, Final Architecture Review) not yet done.
