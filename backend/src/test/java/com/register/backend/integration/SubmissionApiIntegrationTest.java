@@ -117,9 +117,22 @@ class SubmissionApiIntegrationTest {
                 .andExpect(jsonPath("$.email").value("jane@example.com"))
                 .andExpect(jsonPath("$.phone").value("0123456789"))
                 .andExpect(jsonPath("$.message").value("Hello there"))
-                .andExpect(jsonPath("$.status").value("NEW"))
+                .andExpect(jsonPath("$.status").value("PENDING_CONSULTATION"))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists());
+    }
+
+    @Test
+    void createSubmissionAcceptsAnOptionalCourseId() throws Exception {
+        String requestBody = """
+                {"fullName": "Jane Doe", "email": "jane@example.com", "courseId": 42}
+                """;
+
+        mockMvc.perform(post("/api/submissions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.courseId").value(42));
     }
 
     @Test
@@ -140,7 +153,7 @@ class SubmissionApiIntegrationTest {
     @Test
     void listSubmissionsReturnsCorrectPagination() throws Exception {
         for (int i = 1; i <= 25; i++) {
-            seedSubmission("Applicant " + i, "applicant" + i + "@example.com", SubmissionStatus.NEW);
+            seedSubmission("Applicant " + i, "applicant" + i + "@example.com", SubmissionStatus.PENDING_CONSULTATION);
         }
 
         mockMvc.perform(get("/api/admin/submissions")
@@ -165,9 +178,9 @@ class SubmissionApiIntegrationTest {
 
     @Test
     void listSubmissionsFiltersBySearchSubstring() throws Exception {
-        seedSubmission("Alice Wonderland", "alice@example.com", SubmissionStatus.NEW);
-        seedSubmission("Bob Marley", "bob@example.com", SubmissionStatus.NEW);
-        seedSubmission("Carol Danvers", "carol@example.com", SubmissionStatus.NEW);
+        seedSubmission("Alice Wonderland", "alice@example.com", SubmissionStatus.PENDING_CONSULTATION);
+        seedSubmission("Bob Marley", "bob@example.com", SubmissionStatus.PENDING_CONSULTATION);
+        seedSubmission("Carol Danvers", "carol@example.com", SubmissionStatus.PENDING_CONSULTATION);
 
         mockMvc.perform(get("/api/admin/submissions")
                         .param("search", "alice")
@@ -179,9 +192,9 @@ class SubmissionApiIntegrationTest {
 
     @Test
     void listSubmissionsFiltersByStatus() throws Exception {
-        seedSubmission("New Person", "new@example.com", SubmissionStatus.NEW);
+        seedSubmission("New Person", "new@example.com", SubmissionStatus.PENDING_CONSULTATION);
         seedSubmission("In Progress Person", "progress@example.com", SubmissionStatus.IN_PROGRESS);
-        seedSubmission("Completed Person", "completed@example.com", SubmissionStatus.COMPLETED);
+        seedSubmission("Completed Person", "completed@example.com", SubmissionStatus.GRADUATED);
 
         mockMvc.perform(get("/api/admin/submissions")
                         .param("status", "IN_PROGRESS")
@@ -194,7 +207,7 @@ class SubmissionApiIntegrationTest {
 
     @Test
     void listSubmissionsFiltersBySearchAndStatusCombined() throws Exception {
-        seedSubmission("Alice Wonderland", "alice@example.com", SubmissionStatus.NEW);
+        seedSubmission("Alice Wonderland", "alice@example.com", SubmissionStatus.PENDING_CONSULTATION);
         seedSubmission("Alice In Progress", "alice.progress@example.com", SubmissionStatus.IN_PROGRESS);
         seedSubmission("Bob In Progress", "bob@example.com", SubmissionStatus.IN_PROGRESS);
 
@@ -209,7 +222,7 @@ class SubmissionApiIntegrationTest {
 
     @Test
     void getSubmissionByIdReturns200WithCorrectBodyWhenItExists() throws Exception {
-        Submission submission = seedSubmission("Jane Doe", "jane@example.com", SubmissionStatus.NEW);
+        Submission submission = seedSubmission("Jane Doe", "jane@example.com", SubmissionStatus.PENDING_CONSULTATION);
 
         mockMvc.perform(get("/api/admin/submissions/{id}", submission.getId())
                         .header("Authorization", "Bearer " + adminToken))
@@ -230,20 +243,20 @@ class SubmissionApiIntegrationTest {
 
     @Test
     void updateStatusReturns200WithUpdatedBodyOnValidStatus() throws Exception {
-        Submission submission = seedSubmission("Jane Doe", "jane@example.com", SubmissionStatus.NEW);
+        Submission submission = seedSubmission("Jane Doe", "jane@example.com", SubmissionStatus.PENDING_CONSULTATION);
 
         mockMvc.perform(patch("/api/admin/submissions/{id}/status", submission.getId())
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"status\": \"COMPLETED\"}"))
+                        .content("{\"status\": \"GRADUATED\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(submission.getId()))
-                .andExpect(jsonPath("$.status").value("COMPLETED"));
+                .andExpect(jsonPath("$.status").value("GRADUATED"));
     }
 
     @Test
     void updateStatusReturns400OnInvalidStatusValue() throws Exception {
-        Submission submission = seedSubmission("Jane Doe", "jane@example.com", SubmissionStatus.NEW);
+        Submission submission = seedSubmission("Jane Doe", "jane@example.com", SubmissionStatus.PENDING_CONSULTATION);
 
         mockMvc.perform(patch("/api/admin/submissions/{id}/status", submission.getId())
                         .header("Authorization", "Bearer " + adminToken)
@@ -258,26 +271,44 @@ class SubmissionApiIntegrationTest {
         mockMvc.perform(patch("/api/admin/submissions/{id}/status", 999999L)
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"status\": \"COMPLETED\"}"))
+                        .content("{\"status\": \"GRADUATED\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
 
     @Test
     void dashboardSummaryReflectsSeededData() throws Exception {
-        seedSubmission("New One", "new1@example.com", SubmissionStatus.NEW);
-        seedSubmission("New Two", "new2@example.com", SubmissionStatus.NEW);
+        seedSubmission("New One", "new1@example.com", SubmissionStatus.PENDING_CONSULTATION);
+        seedSubmission("New Two", "new2@example.com", SubmissionStatus.PENDING_CONSULTATION);
+        seedSubmission("Confirmed One", "confirmed1@example.com", SubmissionStatus.CONFIRMED);
         seedSubmission("In Progress One", "progress1@example.com", SubmissionStatus.IN_PROGRESS);
-        seedSubmission("Completed One", "completed1@example.com", SubmissionStatus.COMPLETED);
+        seedSubmission("Graduated One", "graduated1@example.com", SubmissionStatus.GRADUATED);
 
         mockMvc.perform(get("/api/admin/dashboard/summary")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(4))
-                .andExpect(jsonPath("$.new").value(2))
+                .andExpect(jsonPath("$.total").value(5))
+                .andExpect(jsonPath("$.pendingConsultation").value(2))
+                .andExpect(jsonPath("$.confirmed").value(1))
                 .andExpect(jsonPath("$.inProgress").value(1))
-                .andExpect(jsonPath("$.completed").value(1))
-                .andExpect(jsonPath("$.submittedToday").value(4));
+                .andExpect(jsonPath("$.graduated").value(1))
+                .andExpect(jsonPath("$.submittedToday").value(5));
+    }
+
+    @Test
+    void listSubmissionsFiltersByCourseId() throws Exception {
+        Submission withCourse = seedSubmission("Alice Wonderland", "alice@example.com", SubmissionStatus.PENDING_CONSULTATION);
+        withCourse.setCourseId(42L);
+        submissionRepository.saveAndFlush(withCourse);
+        seedSubmission("Bob Marley", "bob@example.com", SubmissionStatus.PENDING_CONSULTATION);
+
+        mockMvc.perform(get("/api/admin/submissions")
+                        .param("courseId", "42")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].fullName").value("Alice Wonderland"))
+                .andExpect(jsonPath("$.content[0].courseId").value(42));
     }
 
     /**
