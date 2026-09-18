@@ -47,7 +47,7 @@ class SubmissionServiceTest {
     @Test
     void createSubmissionSavesAndReturnsMappedResponseWhenRequestIsValid() {
         CreateSubmissionRequest request = new CreateSubmissionRequest(
-                "Jane Doe", "jane@example.com", "0123456789", "Hello");
+                "Jane Doe", "jane@example.com", "0123456789", "Hello", null);
 
         Submission mappedEntity = new Submission();
         mappedEntity.setFullName("Jane Doe");
@@ -61,11 +61,11 @@ class SubmissionServiceTest {
         savedSubmission.setEmail("jane@example.com");
         savedSubmission.setPhone("0123456789");
         savedSubmission.setMessage("Hello");
-        savedSubmission.setStatus(SubmissionStatus.NEW);
+        savedSubmission.setStatus(SubmissionStatus.PENDING_CONSULTATION);
 
         SubmissionResponse expectedResponse = new SubmissionResponse(
                 1L, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.NEW, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.PENDING_CONSULTATION, null, LocalDateTime.now(), LocalDateTime.now());
 
         when(submissionMapper.toEntity(request)).thenReturn(mappedEntity);
         when(submissionRepository.save(mappedEntity)).thenReturn(savedSubmission);
@@ -82,10 +82,10 @@ class SubmissionServiceTest {
     @Test
     void createSubmissionForcesStatusToNewBeforeSaving() {
         CreateSubmissionRequest request = new CreateSubmissionRequest(
-                "Jane Doe", "jane@example.com", "0123456789", "Hello");
+                "Jane Doe", "jane@example.com", "0123456789", "Hello", null);
 
         Submission mappedEntity = new Submission();
-        mappedEntity.setStatus(SubmissionStatus.COMPLETED);
+        mappedEntity.setStatus(SubmissionStatus.GRADUATED);
 
         when(submissionMapper.toEntity(request)).thenReturn(mappedEntity);
         when(submissionRepository.save(any(Submission.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -94,13 +94,13 @@ class SubmissionServiceTest {
 
         ArgumentCaptor<Submission> savedCaptor = ArgumentCaptor.forClass(Submission.class);
         verify(submissionRepository).save(savedCaptor.capture());
-        assertThat(savedCaptor.getValue().getStatus()).isEqualTo(SubmissionStatus.NEW);
+        assertThat(savedCaptor.getValue().getStatus()).isEqualTo(SubmissionStatus.PENDING_CONSULTATION);
     }
 
     @Test
     void listSubmissionsReturnsMappedPageResponseWhenSearchAndStatusProvided() {
         String search = "jane";
-        SubmissionStatus status = SubmissionStatus.NEW;
+        SubmissionStatus status = SubmissionStatus.PENDING_CONSULTATION;
         Pageable pageable = PageRequest.of(0, 10);
 
         Submission submission = new Submission();
@@ -109,25 +109,25 @@ class SubmissionServiceTest {
         submission.setEmail("jane@example.com");
         submission.setPhone("0123456789");
         submission.setMessage("Hello");
-        submission.setStatus(SubmissionStatus.NEW);
+        submission.setStatus(SubmissionStatus.PENDING_CONSULTATION);
 
         Page<Submission> page = new PageImpl<>(List.of(submission), pageable, 1);
 
         SubmissionResponse mappedResponse = new SubmissionResponse(
                 1L, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.NEW, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.PENDING_CONSULTATION, null, LocalDateTime.now(), LocalDateTime.now());
 
-        when(submissionRepository.search(search, status, pageable)).thenReturn(page);
+        when(submissionRepository.search(search, status, null, pageable)).thenReturn(page);
         when(submissionMapper.toResponse(submission)).thenReturn(mappedResponse);
 
-        PageResponse<SubmissionResponse> actual = submissionService.listSubmissions(search, status, pageable);
+        PageResponse<SubmissionResponse> actual = submissionService.listSubmissions(search, status, null, pageable);
 
         assertThat(actual.content()).containsExactly(mappedResponse);
         assertThat(actual.page()).isEqualTo(0);
         assertThat(actual.size()).isEqualTo(10);
         assertThat(actual.totalElements()).isEqualTo(1L);
         assertThat(actual.totalPages()).isEqualTo(1);
-        verify(submissionRepository).search(search, status, pageable);
+        verify(submissionRepository).search(search, status, null, pageable);
         verify(submissionMapper).toResponse(submission);
     }
 
@@ -136,11 +136,24 @@ class SubmissionServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         Page<Submission> emptyPage = new PageImpl<>(List.of(), pageable, 0);
 
-        when(submissionRepository.search(isNull(), eq(SubmissionStatus.NEW), eq(pageable))).thenReturn(emptyPage);
+        when(submissionRepository.search(isNull(), eq(SubmissionStatus.PENDING_CONSULTATION), isNull(), eq(pageable))).thenReturn(emptyPage);
 
-        submissionService.listSubmissions("   ", SubmissionStatus.NEW, pageable);
+        submissionService.listSubmissions("   ", SubmissionStatus.PENDING_CONSULTATION, null, pageable);
 
-        verify(submissionRepository).search(isNull(), eq(SubmissionStatus.NEW), eq(pageable));
+        verify(submissionRepository).search(isNull(), eq(SubmissionStatus.PENDING_CONSULTATION), isNull(), eq(pageable));
+    }
+
+    @Test
+    void listSubmissionsPassesCourseIdFilterToRepository() {
+        Long courseId = 7L;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Submission> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+
+        when(submissionRepository.search(isNull(), isNull(), eq(courseId), eq(pageable))).thenReturn(emptyPage);
+
+        submissionService.listSubmissions(null, null, courseId, pageable);
+
+        verify(submissionRepository).search(isNull(), isNull(), eq(courseId), eq(pageable));
     }
 
     @Test
@@ -152,11 +165,11 @@ class SubmissionServiceTest {
         submission.setEmail("jane@example.com");
         submission.setPhone("0123456789");
         submission.setMessage("Hello");
-        submission.setStatus(SubmissionStatus.NEW);
+        submission.setStatus(SubmissionStatus.PENDING_CONSULTATION);
 
         SubmissionResponse expectedResponse = new SubmissionResponse(
                 id, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.NEW, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.PENDING_CONSULTATION, null, LocalDateTime.now(), LocalDateTime.now());
 
         when(submissionRepository.findById(id)).thenReturn(Optional.of(submission));
         when(submissionMapper.toResponse(submission)).thenReturn(expectedResponse);
@@ -190,11 +203,11 @@ class SubmissionServiceTest {
         submission.setEmail("jane@example.com");
         submission.setPhone("0123456789");
         submission.setMessage("Hello");
-        submission.setStatus(SubmissionStatus.NEW);
+        submission.setStatus(SubmissionStatus.PENDING_CONSULTATION);
 
         SubmissionResponse expectedResponse = new SubmissionResponse(
                 id, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.IN_PROGRESS, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.IN_PROGRESS, null, LocalDateTime.now(), LocalDateTime.now());
 
         when(submissionRepository.findById(id)).thenReturn(Optional.of(submission));
         when(submissionRepository.saveAndFlush(submission)).thenReturn(submission);

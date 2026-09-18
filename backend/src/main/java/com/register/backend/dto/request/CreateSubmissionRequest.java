@@ -18,7 +18,9 @@ public record CreateSubmissionRequest(
         String phone,
 
         @Size(max = 2000)
-        String message
+        String message,
+
+        Long courseId
 
 ) {
 }

@@ -27,24 +27,26 @@ public class SubmissionService {
     @Transactional
     public SubmissionResponse createSubmission(CreateSubmissionRequest request) {
         Submission submission = submissionMapper.toEntity(request);
-        submission.setStatus(SubmissionStatus.NEW);
+        submission.setStatus(SubmissionStatus.PENDING_CONSULTATION);
         Submission saved = submissionRepository.save(submission);
         return submissionMapper.toResponse(saved);
     }
 
     /**
      * Lists submissions with server-side pagination, an optional case-insensitive search across
-     * fullName/email/phone, and an optional status filter, both applied at the database level.
+     * fullName/email/phone, an optional status filter, and an optional course filter, all applied at the
+     * database level.
      *
      * @param search   substring to match against fullName/email/phone, or blank/{@code null} to skip search filtering
      * @param status   status to filter by, or {@code null} to include all statuses
+     * @param courseId course ID to filter by, or {@code null} to include submissions for any (or no) course
      * @param pageable pagination and sorting information
      * @return a page of submissions mapped to response DTOs
      */
     @Transactional(readOnly = true)
-    public PageResponse<SubmissionResponse> listSubmissions(String search, SubmissionStatus status, Pageable pageable) {
+    public PageResponse<SubmissionResponse> listSubmissions(String search, SubmissionStatus status, Long courseId, Pageable pageable) {
         String normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
-        Page<Submission> page = submissionRepository.search(normalizedSearch, status, pageable);
+        Page<Submission> page = submissionRepository.search(normalizedSearch, status, courseId, pageable);
         return new PageResponse<>(
                 page.getContent().stream().map(submissionMapper::toResponse).toList(),
                 page.getNumber(),

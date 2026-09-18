@@ -14,6 +14,7 @@ public class SubmissionMapper {
         submission.setEmail(request.email());
         submission.setPhone(request.phone());
         submission.setMessage(request.message());
+        submission.setCourseId(request.courseId());
         return submission;
     }
 
@@ -25,6 +26,7 @@ public class SubmissionMapper {
                 submission.getPhone(),
                 submission.getMessage(),
                 submission.getStatus(),
+                submission.getCourseId(),
                 submission.getCreatedAt(),
                 submission.getUpdatedAt()
         );

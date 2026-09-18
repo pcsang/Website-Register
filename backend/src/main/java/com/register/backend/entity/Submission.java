@@ -42,6 +42,9 @@ public class Submission {
     @Column(nullable = false, length = 20)
     private SubmissionStatus status;
 
+    @Column(name = "course_id")
+    private Long courseId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -106,6 +109,14 @@ public class Submission {
 
     public void setStatus(SubmissionStatus status) {
         this.status = status;
+    }
+
+    public Long getCourseId() {
+        return courseId;
+    }
+
+    public void setCourseId(Long courseId) {
+        this.courseId = courseId;
     }
 
     public LocalDateTime getCreatedAt() {

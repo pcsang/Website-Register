@@ -11,6 +11,7 @@ public record SubmissionResponse(
         String phone,
         String message,
         SubmissionStatus status,
+        Long courseId,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

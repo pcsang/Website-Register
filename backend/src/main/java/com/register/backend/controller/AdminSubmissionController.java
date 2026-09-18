@@ -28,10 +28,12 @@ public class AdminSubmissionController {
     }
 
     /**
-     * Lists submissions with server-side pagination, optional search, and optional status filtering.
+     * Lists submissions with server-side pagination, optional search, optional status filtering, and
+     * optional course filtering.
      *
      * @param search   optional case-insensitive substring to match against fullName/email/phone
      * @param status   optional status to filter by
+     * @param courseId optional course ID to filter by
      * @param pageable pagination/sorting bound from the page/size/sort query params (defaults: page 0,
      *                 size 20, sorted by createdAt DESC)
      * @return a page of submissions
@@ -40,8 +42,9 @@ public class AdminSubmissionController {
     public PageResponse<SubmissionResponse> listSubmissions(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) SubmissionStatus status,
+            @RequestParam(required = false) Long courseId,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return submissionService.listSubmissions(search, status, pageable);
+        return submissionService.listSubmissions(search, status, courseId, pageable);
     }
 
     /**

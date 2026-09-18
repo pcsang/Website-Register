@@ -42,10 +42,10 @@ class SubmissionControllerTest {
     @Test
     void createSubmissionReturns201WithMappedResponseWhenRequestIsValid() throws Exception {
         CreateSubmissionRequest request = new CreateSubmissionRequest(
-                "Jane Doe", "jane@example.com", "0123456789", "Hello");
+                "Jane Doe", "jane@example.com", "0123456789", "Hello", null);
         SubmissionResponse response = new SubmissionResponse(
                 1L, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.NEW, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.PENDING_CONSULTATION, null, LocalDateTime.now(), LocalDateTime.now());
 
         when(submissionService.createSubmission(request)).thenReturn(response);
 
@@ -55,7 +55,7 @@ class SubmissionControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.fullName").value("Jane Doe"))
-                .andExpect(jsonPath("$.status").value("NEW"));
+                .andExpect(jsonPath("$.status").value("PENDING_CONSULTATION"));
 
         verify(submissionService).createSubmission(request);
     }
@@ -63,7 +63,7 @@ class SubmissionControllerTest {
     @Test
     void createSubmissionReturns400WhenFullNameIsBlank() throws Exception {
         CreateSubmissionRequest request = new CreateSubmissionRequest(
-                "", "jane@example.com", "0123456789", "Hello");
+                "", "jane@example.com", "0123456789", "Hello", null);
 
         mockMvc.perform(post("/api/submissions")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -77,7 +77,7 @@ class SubmissionControllerTest {
     @Test
     void createSubmissionReturns400WhenEmailIsInvalid() throws Exception {
         CreateSubmissionRequest request = new CreateSubmissionRequest(
-                "Jane Doe", "not-an-email", "0123456789", "Hello");
+                "Jane Doe", "not-an-email", "0123456789", "Hello", null);
 
         mockMvc.perform(post("/api/submissions")
                         .contentType(MediaType.APPLICATION_JSON)

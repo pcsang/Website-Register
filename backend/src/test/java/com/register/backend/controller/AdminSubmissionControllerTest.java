@@ -49,36 +49,51 @@ class AdminSubmissionControllerTest {
     void listSubmissionsReturnsPageResponseFromServiceWithSearchAndStatusParams() throws Exception {
         SubmissionResponse submission = new SubmissionResponse(
                 1L, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.NEW, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.PENDING_CONSULTATION, null, LocalDateTime.now(), LocalDateTime.now());
         PageResponse<SubmissionResponse> pageResponse = new PageResponse<>(List.of(submission), 0, 20, 1, 1);
 
-        when(submissionService.listSubmissions(eq("jane"), eq(SubmissionStatus.NEW), any(Pageable.class)))
+        when(submissionService.listSubmissions(eq("jane"), eq(SubmissionStatus.PENDING_CONSULTATION), isNull(), any(Pageable.class)))
                 .thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/admin/submissions")
                         .param("search", "jane")
-                        .param("status", "NEW"))
+                        .param("status", "PENDING_CONSULTATION"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(1))
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.size").value(20));
 
-        verify(submissionService).listSubmissions(eq("jane"), eq(SubmissionStatus.NEW), any(Pageable.class));
+        verify(submissionService).listSubmissions(eq("jane"), eq(SubmissionStatus.PENDING_CONSULTATION), isNull(), any(Pageable.class));
     }
 
     @Test
     void listSubmissionsPassesNullSearchAndStatusWhenParamsAreOmitted() throws Exception {
         PageResponse<SubmissionResponse> pageResponse = new PageResponse<>(List.of(), 0, 20, 0, 0);
 
-        when(submissionService.listSubmissions(isNull(), isNull(), any(Pageable.class)))
+        when(submissionService.listSubmissions(isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/admin/submissions"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isEmpty());
 
-        verify(submissionService).listSubmissions(isNull(), isNull(), any(Pageable.class));
+        verify(submissionService).listSubmissions(isNull(), isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void listSubmissionsPassesCourseIdParamWhenProvided() throws Exception {
+        PageResponse<SubmissionResponse> pageResponse = new PageResponse<>(List.of(), 0, 20, 0, 0);
+
+        when(submissionService.listSubmissions(isNull(), isNull(), eq(5L), any(Pageable.class)))
+                .thenReturn(pageResponse);
+
+        mockMvc.perform(get("/api/admin/submissions")
+                        .param("courseId", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+
+        verify(submissionService).listSubmissions(isNull(), isNull(), eq(5L), any(Pageable.class));
     }
 
     @Test
@@ -86,7 +101,7 @@ class AdminSubmissionControllerTest {
         Long id = 1L;
         SubmissionResponse response = new SubmissionResponse(
                 id, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.NEW, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.PENDING_CONSULTATION, null, LocalDateTime.now(), LocalDateTime.now());
 
         when(submissionService.getSubmissionById(id)).thenReturn(response);
 
@@ -118,7 +133,7 @@ class AdminSubmissionControllerTest {
         UpdateSubmissionStatusRequest request = new UpdateSubmissionStatusRequest(SubmissionStatus.IN_PROGRESS);
         SubmissionResponse response = new SubmissionResponse(
                 id, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.IN_PROGRESS, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.IN_PROGRESS, null, LocalDateTime.now(), LocalDateTime.now());
 
         when(submissionService.updateStatus(id, SubmissionStatus.IN_PROGRESS)).thenReturn(response);
 

@@ -1,16 +1,16 @@
 package com.register.backend.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 /**
- * Summary counts for the admin dashboard: total submissions, counts broken down by status, and
- * submissions created today (server local time).
+ * Summary counts for the admin dashboard: total submissions, counts broken down by the 4-state
+ * {@link com.register.backend.enums.SubmissionStatus} model, and submissions created today (server local
+ * time).
  */
 public record DashboardSummaryResponse(
         long total,
-        @JsonProperty("new") long newCount,
+        long pendingConsultation,
+        long confirmed,
         long inProgress,
-        long completed,
+        long graduated,
         long submittedToday
 ) {
 }
