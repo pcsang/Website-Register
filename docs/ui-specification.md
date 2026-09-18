@@ -1,16 +1,16 @@
 # Angular Frontend (`clientUI/`) — Technical Specification
 
-**Status as of this document:** Phases 11–17 of the roadmap are implemented (Angular Setup, API Models +
-Service, Public User Form, Admin Dashboard UI, Submission Detail UI, and — as of the two most recent
-phases — a full admin login flow: `AuthService`, an HTTP interceptor, a route guard, and the `/admin/login`
-page). A landscaping-inspired visual redesign (custom Material theme, shared nav header) also landed as an
-out-of-roadmap styling pass between Phases 15 and 16. See [Not Yet Implemented](#not-yet-implemented) at
-the end for what's still open.
+**Status as of this document:** Roadmap Phases 11–17 (Angular setup through admin JWT auth) are
+implemented, **plus** the full **DriveUp UI/UX redesign** (Plan 1 reskin + Plan 2 D1–D6 domain adoption —
+see [`docs/planning/`](planning/)): a blue/orange design system replacing the earlier green "landscaping"
+theme, a sidebar+topbar admin shell with three real pages (Overview/Students/Courses), and a full 8-section
+public landing page replacing the old single-field `/form`. See [Not Yet Implemented](#not-yet-implemented)
+for what's still open.
 
 This document describes the actual current implementation under `clientUI/src/`, cross-checked against the
-real source files (not the roadmap's prose, which may describe a different or future state). For the
-phased plan and rationale behind deviations, see `java-spring-boot-angular-project-prompts.md` and
-`CHECKLIST.md` at the repo root.
+real source files. For the phased plan and rationale behind deviations, see
+`java-spring-boot-angular-project-prompts.md`, `docs/planning/plan-1-ui-reskin-ngan-han.md`,
+`docs/planning/plan-2-full-redesign-driveup.md`, and `CHECKLIST.md` at the repo root.
 
 ---
 
@@ -24,26 +24,27 @@ Sourced from `clientUI/package.json`.
 | `@angular/animations` | ^19.2.25 |
 | `@angular/cdk` | ^19.2.19 |
 | `@angular/material` | ^19.2.19 |
+| `@lucide/angular` | ^1.47.0 |
 | `rxjs` | ~7.8.0 |
 | `zone.js` | ~0.15.0 |
 | `typescript` | ~5.7.2 |
-| `@angular/cli` / `@angular-devkit/build-angular` (dev) | ^19.2.27 |
-| Testing: `jasmine-core`, `karma`, `karma-chrome-launcher`, `karma-jasmine`, `karma-jasmine-html-reporter`, `karma-coverage` | ~5.6.0 / ~6.4.0 / ~3.2.0 / ~5.1.0 / ~2.1.0 / ~2.2.0 |
+| Testing: `jasmine-core`, `karma` + plugins | see `package.json` |
 
 Notes:
-- Angular CLI was pinned to v19 (not "latest") because the dev machine's Node 22.14.0 doesn't satisfy the
-  newest CLI's Node requirement — still a fully modern standalone-component setup.
-- All components are **standalone** (no `NgModule`s anywhere in the app besides what Angular Material's
-  own modules provide) — each component's `@Component` decorator lists its own `imports` array.
-- Build style: SCSS, routing enabled.
-- **Angular Material theme: custom, not the `indigo-pink` prebuilt.** `src/styles.scss` defines a green/
-  earth-toned M3 theme via `@include mat.theme(...)` (primary `mat.$green-palette`, tertiary
-  `mat.$orange-palette`) plus a set of CSS custom properties (`--color-primary: #2f6f4e`, `--color-accent:
-  #d98e4a`, sand background `#f7f5f0`, etc.) and a shared `.status-badge` pill class reused by the dashboard
-  table and detail page. Fonts: **Poppins** (600/700, headings) and **Inter** (400/500/600, body), loaded
-  via Google Fonts `<link>` tags in `index.html` — replacing the earlier bare Roboto setup. This was a
-  deliberate, out-of-roadmap visual redesign (landscaping-business-inspired), not a numbered phase — see
-  `CHECKLIST.md`'s "Out-of-roadmap work — Visual restyle" log entry for full detail.
+- All components are **standalone** — no `NgModule`s anywhere besides what Angular Material provides.
+- **Design system (Plan 1 reskin)**: `src/styles.scss` defines a **DriveUp-inspired** design system —
+  primary blue `#2b5fff`, accent orange `#f97316`, ink `#12172b` — via a **custom M3 Material theme**
+  generated from those exact hex codes (`ng generate @angular/material:theme-color`, output in
+  `src/_theme-colors.scss`, since neither color matches a built-in Material palette) plus CSS custom
+  properties (`--color-primary`, `--color-bg-admin`, `--radius-*`, `--sidebar-*`, etc.). Fonts: **Sora**
+  (600/700/800, headings) and **Manrope** (400–800, body), loaded via Google Fonts in `index.html`. Design
+  principles carried through from the DriveUp mockup: no gradients, no left-border cards (an earlier
+  left-border KPI-card pattern was explicitly removed during the reskin), outline icons only (`@lucide/angular`,
+  not Material Icons — the Material Icons font `<link>` was removed from `index.html`).
+- Icon usage: each component imports only the specific `@lucide/angular` icon components it renders (e.g.
+  `LucideSearch`, `LucideLogOut`) directly into its own `imports` array — there is no
+  `LucideAngularModule.pick({...})` registration step with this package version; importing the icon
+  component is the registration.
 
 ---
 
@@ -55,18 +56,18 @@ Defined in `src/app/app.routes.ts`, registered via `provideRouter(routes)` in `s
 
 | Path | Component | Guard | Notes |
 |---|---|---|---|
-| `''` (empty) | — | — | Redirects to `/form` (`pathMatch: 'full'`) |
-| `/form` | `InformationFormComponent` | none | Public submission form |
-| `/admin/login` | `LoginComponent` | none | Public admin login page |
-| `/admin/dashboard` | `DashboardComponent` | **`authGuard`** | Admin dashboard (summary + list) |
-| `/admin/submissions/:id` | `SubmissionDetailComponent` | **`authGuard`** | Admin submission detail/status update |
+| `''` | `LandingPageComponent` | none | **Public landing page** (D6) — was a redirect to `/form` before Plan 2 |
+| `/form` | — | none | Redirects to `''` (backward-compat for old links; `InformationFormComponent` was deleted) |
+| `/admin/login` | `LoginComponent` | none | Public, full-page (no sidebar) |
+| `/admin` | `AdminLayoutComponent` | — (parent, no guard itself) | Sidebar + topbar shell, wraps all admin pages below as children |
+| `/admin/overview` | `OverviewComponent` | `authGuard` | KPIs, month chart, upcoming courses, recent registrations (D5) |
+| `/admin/students` | `StudentsComponent` | `authGuard` | Full searchable/filterable/paginated submissions table (renamed in place from `DashboardComponent`) |
+| `/admin/courses` | `CoursesComponent` | `authGuard` | Course table + create/edit dialog (D5) |
+| `/admin/dashboard` | — | — | Redirects to `/admin/overview` (backward-compat for old bookmarks) |
+| `/admin/submissions/:id` | `SubmissionDetailComponent` | `authGuard` | Submission detail/status update |
 
-`authGuard` (`core/guards/auth.guard.ts`) redirects an unauthenticated visitor to `/admin/login` (via
-`Router.createUrlTree`, not a hard navigation) — see [Section 6](#6-interceptors-guards-and-environment-config).
-There is still no wildcard (`**`) "not found" route for unmatched client-side paths.
-
-`AppComponent` (`src/app/app.component.ts`) now renders a real shared site header (brand + nav), not a bare
-`<router-outlet>` shell — see [Section 3.5](#35-appcomponent-shared-nav-header).
+`authGuard` (`core/guards/auth.guard.ts`, unchanged since Phase 17) redirects an unauthenticated visitor
+to `/admin/login` via `Router.createUrlTree`. Still no wildcard (`**`) "not found" route.
 
 ### 2.2 Folder Layout
 
@@ -74,345 +75,225 @@ There is still no wildcard (`**`) "not found" route for unmatched client-side pa
 clientUI/src/
 ├── app/
 │   ├── admin/
-│   │   ├── dashboard/                 DashboardComponent (ts/html/scss/spec)
-│   │   ├── login/                     LoginComponent (ts/html/scss/spec)
-│   │   └── submission-detail/         SubmissionDetailComponent (ts/html/scss/spec)
+│   │   ├── layout/                    AdminLayoutComponent — sidebar + topbar shell (Plan 1)
+│   │   ├── overview/                  OverviewComponent (D5)
+│   │   ├── students/                  StudentsComponent (D5, was admin/dashboard/)
+│   │   ├── courses/                   CoursesComponent (D5) + courses/course-form-dialog/
+│   │   ├── login/                     LoginComponent
+│   │   └── submission-detail/         SubmissionDetailComponent
 │   ├── core/
-│   │   ├── guards/
-│   │   │   └── auth.guard.ts          authGuard (functional CanActivateFn)
-│   │   ├── interceptors/
-│   │   │   └── auth.interceptor.ts    authInterceptor (functional HttpInterceptorFn)
+│   │   ├── guards/auth.guard.ts
+│   │   ├── interceptors/auth.interceptor.ts
 │   │   └── services/
-│   │       ├── auth.service.ts        AuthService (login/logout/auth state)
-│   │       └── submission.service.ts  all submission/dashboard HTTP calls
+│   │       ├── auth.service.ts
+│   │       ├── submission.service.ts  submission CRUD/list only (dashboard endpoints moved out, D5)
+│   │       ├── course.service.ts      course CRUD/list, public + admin (D4/D5)
+│   │       └── dashboard.service.ts   summary/overview/settings endpoints (D5)
 │   ├── models/
-│   │   ├── auth.model.ts              LoginRequest, LoginResponse
-│   │   ├── submission.model.ts        Submission, CreateSubmissionRequest, UpdateSubmissionStatusRequest, SubmissionStatus
-│   │   ├── page-response.model.ts     PageResponse<T>
-│   │   └── dashboard-summary.model.ts DashboardSummary
+│   │   ├── auth.model.ts
+│   │   ├── submission.model.ts        Submission (4-state status + courseId), CreateSubmissionRequest, ...
+│   │   ├── course.model.ts            Course, LicenseClass, CourseAvailabilityStatus, Create/UpdateCourseRequest (D1/D4)
+│   │   ├── dashboard-overview.model.ts DashboardOverview, MonthlyRegistrationCount, DashboardSettings (D5)
+│   │   ├── page-response.model.ts
+│   │   └── dashboard-summary.model.ts DashboardSummary (4-state shape)
 │   ├── public/
-│   │   └── information-form/          InformationFormComponent (ts/html/scss/spec)
-│   ├── shared/                        still empty (.gitkeep) — no shared components built yet
-│   ├── app.component.ts/.html/.scss/.spec.ts   shared site header/nav + <router-outlet>
-│   ├── app.config.ts                  providers: router, HttpClient (+authInterceptor), async animations
+│   │   └── landing/                   LandingPageComponent (D6) — replaces the deleted public/information-form/
+│   ├── shared/                        still empty (.gitkeep)
+│   ├── app.component.ts/.html/.scss/.spec.ts   bare <router-outlet> (Plan 1 — the old shared top-nav moved into AdminLayoutComponent / the landing page's own nav)
+│   ├── app.config.ts
 │   └── app.routes.ts
 ├── environments/
-│   ├── environment.ts                 production config (apiBaseUrl)
-│   └── environment.development.ts     dev config (apiBaseUrl), swapped in via fileReplacements
-├── index.html                         Poppins/Inter + Material Icons font links
+├── index.html                         Sora/Manrope fonts (no Material Icons font)
 ├── main.ts
-└── styles.scss                        design tokens (CSS custom properties), custom Material M3 theme
+├── styles.scss                        DriveUp design tokens, custom Material M3 theme
+└── _theme-colors.scss                 Generated M3 tonal palette for #2b5fff / #f97316
 ```
-
-This matches the `core/{services,interceptors,guards}`, `models/`, `public/`, `admin/{...}`, `shared/`
-structure named in the roadmap.
 
 ---
 
 ## 3. Components
 
-| Component | Route | Selector | Purpose |
-|---|---|---|---|
-| `AppComponent` | (root shell) | `app-root` | Shared site header/nav (brand, Form/Admin Dashboard links, Login-or-username+Logout) + `<router-outlet>` |
-| `InformationFormComponent` | `/form` | `app-information-form` | Public reactive form to create a new submission |
-| `LoginComponent` | `/admin/login` | `app-login` | Admin login form |
-| `DashboardComponent` | `/admin/dashboard` | `app-dashboard` | Summary cards + paginated/searchable/filterable submissions table |
-| `SubmissionDetailComponent` | `/admin/submissions/:id` | `app-submission-detail` | Loads and displays one submission; lets admin change its status |
-
-None of the routed components declare `@Input()`/`@Output()` — each is a top-level routed page with no
-parent passing data via bindings; `SubmissionDetailComponent` gets its identifier from the `:id` route
-param instead.
-
-### 3.1 `InformationFormComponent` (`src/app/public/information-form/`)
-
-Public, unauthenticated page. A gradient hero band (part of the visual redesign) sits above a `mat-card`
-containing a `FormBuilder`-built `FormGroup` with four controls.
-
-| Control | Validators | Backend field mirrored |
+| Component | Route | Purpose |
 |---|---|---|
-| `fullName` | `required`, `maxLength(200)` | `CreateSubmissionRequest.fullName` (`@NotBlank @Size(max=200)`) |
-| `email` | `email`, `maxLength(255)` (not required) | `CreateSubmissionRequest.email` (`@Email @Size(max=255)`, optional) |
-| `phone` | `maxLength(30)` | `CreateSubmissionRequest.phone` (`@Size(max=30)`, optional) |
-| `message` | `maxLength(2000)` | `CreateSubmissionRequest.message` (`@Size(max=2000)`, optional) |
+| `LandingPageComponent` | `/` | Public 8-section marketing + registration page (D6) |
+| `LoginComponent` | `/admin/login` | Admin login form |
+| `AdminLayoutComponent` | `/admin` (parent) | Dark sidebar (264px) + topbar (76px) shell for all admin pages |
+| `OverviewComponent` | `/admin/overview` | KPI cards, month chart, upcoming courses, recent registrations |
+| `StudentsComponent` | `/admin/students` | Full submissions table (search/status/course filters, pagination) |
+| `CoursesComponent` | `/admin/courses` | Course table + create/edit `MatDialog` |
+| `SubmissionDetailComponent` | `/admin/submissions/:id` | Single submission detail + status update |
 
-Behavior:
-- `onSubmit()` guards re-entrant submission with a `submitting` boolean (also used to `[disabled]` the
-  submit button and swap in a `mat-progress-spinner`).
-- Optional fields are trimmed and sent as `undefined` (omitted), not empty strings, when blank.
-- Calls `SubmissionService.createSubmission()`. On success: resets the form, shows a success
-  `MatSnackBar`. On error: shows the backend's `{message}` (from `GlobalExceptionHandler`'s error shape) via
-  snack bar, falling back to a generic message if the body doesn't match that shape.
-- No navigation on success/failure — user stays on `/form`.
-- The JWT is **never** sent on this request — `authInterceptor` only attaches it to `/api/admin/**` URLs
-  (this one is `/api/submissions`).
+### 3.1 `AdminLayoutComponent` (`admin/layout/`)
 
-### 3.2 `LoginComponent` (`src/app/admin/login/`)
+Introduced in Plan 1, extended in D4 with the 3-item nav. Dark sidebar (`--sidebar-bg`) with:
+- Brand mark, "MENU" section label, 3 `routerLink`+`routerLinkActive` items: **Overview**, **Students**,
+  **Courses** (Lucide icons: `LucideLayoutDashboard`, `LucideUsers`/equivalent, `LucideCalendarDays`/
+  `LucideClipboardList` — see the component's actual imports).
 
-Public admin login page, introduced in Phase 17. Follows `InformationFormComponent`'s exact conventions:
-`FormBuilder` reactive form, a `submitting` guard flag, Material card/form-field/spinner/snackbar.
+Topbar (white, 76px):
+- **Search relay** — a duck-typed `SearchableRouteComponent` interface (`{ searchControl: FormControl<string>
+  }`); on the nested `<router-outlet>`'s `(activate)` event, `AdminLayoutComponent` checks whether the newly
+  activated page exposes a `searchControl` and, if so, relays the topbar's search box into that **same
+  `FormControl` instance** (not a copy) — currently only `StudentsComponent` exposes one, so the search box
+  is hidden on Overview/Courses. This means the layout never implements its own filtering logic, it purely
+  forwards.
+- Current admin's initial-letter avatar + username (`AuthService.username()`) + logout button
+  (`AuthService.logout()` then navigate to `/admin/login`).
+- A mobile hamburger toggle (`sidebarOpen` signal) collapses the sidebar to an off-canvas drawer on narrow
+  viewports.
 
-| Control | Validators |
-|---|---|
-| `username` | `required` |
-| `password` | `required` |
+`admin/login` is intentionally **outside** this layout (full-page card, no sidebar).
 
-Backend enforces only `@NotBlank` on both, so no stricter client-side validation was added.
+### 3.2 `LandingPageComponent` (`public/landing/`)
 
-Behavior:
-- `onSubmit()` calls `AuthService.login({username, password})`.
-- On success: navigates to `/admin/dashboard`.
-- On failure: shows the backend's `{message}` via snack bar (fallback: `"Invalid username or password."`).
+Replaces `InformationFormComponent` (deleted). All 8 sections from
+`driveup-claude-cli-prompt-design-UI-UX.md` §2, single scrolling page:
 
-### 3.3 `DashboardComponent` (`src/app/admin/dashboard/`)
+1. **Nav** — sticky, "DriveUp" brand (car icon), anchor links to `#features`/`#courses`/`#process`/`#reviews`,
+   hotline, pill CTA scrolling to `#dangky`.
+2. **Hero** — headline + description + 2 CTAs + a 3-stat row; a flat (no gradient) illustration panel with
+   a car icon and a floating "Đã đăng ký thành công!" badge.
+3. **Features** (`#features`) — static 4-card grid (hardcoded content, not backend-driven — these are
+   fixed marketing bullets, not data).
+4. **Courses** (`#courses`) — **wired to the real, public `GET /api/courses`** via `CourseService.
+   listPublicCourses()`, not mock data. The B2 card gets the "most popular" treatment
+   (`isPopular(course)` → `licenseClass === 'B2'`). A companion Flyway seed migration
+   (`V5__seed_landing_courses.sql`, backend-side) populates the 3 fixed course packages so this section
+   isn't empty on a fresh database. `courseFeatures(course)` synthesizes the card's bullet list from real
+   `durationMonths`/`practiceHours` plus a small per-license-class phrase override (there's no "feature
+   list" field on the backend `Course` to source this from directly).
+5. **Process** (`#process`) — static 4-step flow (`processSteps`, hardcoded content).
+6. **Reviews** (`#reviews`) — static 3 testimonial cards (`testimonials`, hardcoded — names/roles/quotes
+   verbatim from the design doc).
+7. **Registration form** (`#dangky`) — `FormBuilder` reactive form: `fullName`/`phone` (Vietnamese mobile
+   pattern `^(0|\+84)(3|5|7|8|9)[0-9]{8}$`)/`email`/`licenseClass`, **all required** (stricter than the
+   backend's `CreateSubmissionRequest`, which makes `email`/`phone` optional — a deliberate per-page choice
+   matching this page's own design spec). `onSubmit()` resolves the selected `licenseClass` to a `courseId`
+   by picking the first currently-loaded course of that class (`resolveCourseId`) — omitted from the
+   request if none is loaded, since `courseId` is optional server-side. On success: hides the form, shows a
+   success state (`submitted` flag) rather than navigating away.
+8. **Footer** — static 4-column dark footer.
 
-Protected by `authGuard`. Two independently-loading sections:
+`selectCourseClass(licenseClass)` — clicking a pricing card's CTA pre-fills the registration form's
+`licenseClass` dropdown (the anchor `href` handles the scroll).
 
-1. **Summary cards** (5 `mat-card` tiles: Total, New, In Progress, Completed, Submitted Today — each with
-   a left accent bar + circular Material icon per the visual redesign), bound to
-   `SubmissionService.getDashboardSummary()`, own `summaryLoading` flag and own error handling (a snack bar
-   only — cards render nothing while `null`).
-2. **Submissions table** (`mat-table`, columns: `fullName`, `email`, `phone`, `status`, `createdAt`,
-   `action`) fed by a plain `Submission[]` array (not `MatTableDataSource`, since paging/filtering/sorting
-   are all server-driven), with:
-   - `MatPaginator` (`pageIndex`, `pageSize`, `[length]=totalElements`, page sizes `[10, 20, 50]`); every
-     page change re-calls `listSubmissions()`.
-   - A search `FormControl` piped through a `Subject<string>` with `debounceTime(300ms)` +
-     `distinctUntilChanged()` before triggering a reload; resets `pageIndex` to 0.
-   - A status `mat-select` (`ALL | NEW | IN_PROGRESS | COMPLETED`) that reloads immediately (no debounce)
-     on change, also resetting `pageIndex` to 0; `ALL` omits the `status` query param entirely.
-   - The `status` column renders the shared `.status-badge` pill (color-coded per status) instead of plain
-     text.
-   - Loading spinners shown separately for the summary section and the table region; an explicit "No
-     submissions found." empty state when a loaded page has zero rows.
-   - Per-row "View" button (`viewSubmission()`) navigates to `/admin/submissions/:id` via `Router`.
+### 3.3 `OverviewComponent` (`admin/overview/`)
 
-Every request this component triggers goes through `SubmissionService`, whose admin-facing URLs
-(`/api/admin/submissions`, `/api/admin/dashboard/summary`) get the JWT attached automatically by
-`authInterceptor` — the component itself has no auth-related code.
+New in D5. Loads two independent things in `ngOnInit` (a failure in one doesn't block the other):
 
-Responsive: summary cards `flex-wrap` to stack below 600px; table sits in an `overflow-x: auto` container
-with a `min-width` (horizontal scroll rather than column collapse); filters stack vertically below 600px.
+- `DashboardService.getDashboardOverview()` → 4 KPI cards (**New Students This Month** = the last entry of
+  `monthlyRegistrations`; **Revenue This Month (est.)** = `estimatedRevenueThisMonth`, formatted via
+  `Intl.NumberFormat('vi-VN', {style:'currency', currency:'VND'})`; **Open Courses** =
+  `upcomingCourses.length`; **Pass Rate** = `settings.passRatePercent`, or `'—'` if never configured) + a
+  **month-by-month bar chart** (`buildChartBars` computes each bar's height as a percentage of the largest
+  count in the series — **plain flexbox/div bars, no charting library**, per the project's
+  no-unnecessary-dependency convention) + an **upcoming courses** list (from the same response, with a
+  "View all" link to `/admin/courses`).
+- `SubmissionService.listSubmissions(0, 5)` → a short **recent registrations** table (newest-first, the
+  backend's default sort), with a "View all" link to `/admin/students`.
 
-### 3.4 `SubmissionDetailComponent` (`src/app/admin/submission-detail/`)
+### 3.4 `StudentsComponent` (`admin/students/`, formerly `DashboardComponent`)
 
-Protected by `authGuard`. Reads `:id` from `ActivatedRoute.snapshot.paramMap` in `ngOnInit`. An
-unparseable/missing `id` is treated identically to a backend 404 (`notFound = true`).
+Repurposed in place during D5 (git history shows this as a rename, not a delete+recreate). Same
+search/pagination mechanics as before Plan 2, extended with:
+- Status filter options now the 4 new values (`PENDING_CONSULTATION`/`CONFIRMED`/`IN_PROGRESS`/`GRADUATED`).
+- New **course filter** dropdown (`courseControl`), populated once from `CourseService.
+  listCoursesForAdmin(0, 100)` (a flat list, not a searchable picker — deliberately simple).
+- KPI summary cards **removed** from this page — they moved to `OverviewComponent`; this page is now
+  purely the table + filters + pagination.
+- Status badges use the shared `.status-badge` CSS pattern (`styles.scss`), extended with a 4th color
+  variant for `CONFIRMED` (blue) alongside the existing purple/amber/green for the other three.
 
-States rendered (mutually exclusive, `@if`/`@else if` chain):
+### 3.5 `CoursesComponent` (`admin/courses/`)
 
-| State | Condition | UI |
-|---|---|---|
-| Loading | `loading` | `mat-spinner` |
-| Not found | `notFound` (missing/unparseable id, or backend 404) | "Submission not found." + Back to Dashboard button |
-| Load error | `loadError` (any other fetch failure) | "Something went wrong loading this submission." + Back to Dashboard button, plus an error snack bar |
-| Loaded | `submission !== null` | Icon-labeled field grid + status editor |
+New in D5. Server-side paginated table: name, start date, teacher, a **seats progress bar** (colored by
+`availabilityStatus` — green `AVAILABLE`, amber `FILLING_UP`, red `FULL`, matching the same 3-color
+semantic used elsewhere), edit action. Toolbar: `licenseClass` dropdown (`ALL`/`B1`/`B2`/`C`) and a
+**branch** dropdown populated from a one-time unfiltered load's distinct branch values (`loadBranchOptions`)
+— no status/availability filter, since the backend doesn't support filtering on that derived field.
 
-Loaded detail grid fields: Full Name, Email, Phone, Message, Status (as the shared `.status-badge` pill),
-Created At, Updated At (`null` email/phone/message rendered as `—`; timestamps formatted with Angular's
-`date: 'medium'` pipe). No Company/Position fields (see [field-set deviation](#5-modelsinterfaces) below).
-Each field label has a matching Material icon (visual redesign).
+"+ Thêm khoá học" button opens `CourseFormDialogComponent` (a `MatDialog`, `admin/courses/
+course-form-dialog/`) with a Reactive Form matching `CreateCourseRequest`/`UpdateCourseRequest` — same
+dialog handles both create (`data.course === null`) and edit (`data.course` populated). Native
+`<input type="date">` is used for `startDate` rather than `MatDatepickerModule`, to avoid pulling in a new
+date-adapter provider dependency. On the dialog closing with a result, the parent reloads both the course
+list and the branch filter options (a newly created course might introduce a new branch value).
 
-Status editor: a `mat-select` (`statusControl`, options `NEW | IN_PROGRESS | COMPLETED`) initialized to the
-loaded submission's current status on every successful load. "Update Status" button:
-- Disabled via `isUpdateDisabled()` while no submission is loaded, while a save is in flight, or when the
-  selected value equals the submission's current status (avoids a no-op PATCH).
-- Calls `SubmissionService.updateStatus(id, statusControl.value)`; on success replaces the displayed
-  `submission` (including its refreshed `updatedAt`) with the response and shows a success snack bar; on
-  failure shows an error snack bar and re-enables the button.
+### 3.6 `SubmissionDetailComponent`, `LoginComponent`
 
-"Back to Dashboard" button (shown in not-found/error states, and always under the loaded detail card)
-navigates to `/admin/dashboard` via `Router`.
-
-Responsive: the two-column `detail-grid` collapses to one column, and the status/update-button row stacks
-vertically, below 600px.
-
-**No component-level 401 handling** — a 401 on any admin call is caught globally by `authInterceptor`
-(logout + redirect to `/admin/login`) before this component's own `error` callback would need to react to
-it specifically; see [Section 6](#6-interceptors-guards-and-environment-config).
-
-### 3.5 `AppComponent` — shared nav header
-
-No longer a bare shell. `app.component.html` renders a sticky `.site-header` (gradient green background)
-containing:
-- A brand link (leaf `mat-icon` + "GreenField Register" text) → `/form`.
-- Nav links: "Form" (`/form`), "Admin Dashboard" (`/admin/dashboard`), both with `routerLinkActive`
-  highlighting.
-- **Auth-aware, reactive** (no page reload): if `authService.isAuthenticated()`, shows the current
-  `authService.username()` plus a "Logout" button (`onLogout()` → `authService.logout()` then navigates to
-  `/admin/login`); otherwise shows a "Login" link → `/admin/login`.
-
-Collapses to a stacked layout below 600px (`app.component.scss`).
+Unchanged in structure since Phase 17/the Plan 1 reskin — see this doc's git history for the full
+per-state breakdown (loading/not-found/error/loaded) if needed; only the visual tokens and status-badge
+palette changed, not the logic.
 
 ---
 
 ## 4. Services
 
-### 4.1 `SubmissionService` (`src/app/core/services/submission.service.ts`)
-
-`providedIn: 'root'`, uses `inject()`. The only place in the app that calls the submission/dashboard API —
-no component calls `HttpClient` directly for these.
-
-| Method | HTTP | Endpoint | Request type | Response type |
-|---|---|---|---|---|
-| `createSubmission(request)` | `POST` | `${apiBaseUrl}/api/submissions` | `CreateSubmissionRequest` | `Observable<Submission>` |
-| `listSubmissions(page?, size?, search?, status?)` | `GET` | `${apiBaseUrl}/api/admin/submissions` | query params `page`, `size`, `search`, `status` (each omitted, not sent blank, if undefined/blank) | `Observable<PageResponse<Submission>>` |
-| `getSubmission(id)` | `GET` | `${apiBaseUrl}/api/admin/submissions/{id}` | — | `Observable<Submission>` |
-| `updateStatus(id, status)` | `PATCH` | `${apiBaseUrl}/api/admin/submissions/{id}/status` | `{ status }` (`UpdateSubmissionStatusRequest` shape) | `Observable<Submission>` |
-| `getDashboardSummary()` | `GET` | `${apiBaseUrl}/api/admin/dashboard/summary` | — | `Observable<DashboardSummary>` |
-
-This file was **not modified** by the Phase 17 auth work — `authInterceptor` attaches the bearer token
-purely by matching each outgoing request's URL prefix, so this service didn't need to change at all.
-
-### 4.2 `AuthService` (`src/app/core/services/auth.service.ts`)
-
-`providedIn: 'root'`, introduced in Phase 17. Holds and manages all admin auth state for the app.
-
-| Member | Kind | Description |
+| Service | File | Responsibility |
 |---|---|---|
-| `login(request: LoginRequest)` | method → `Observable<LoginResponse>` | `POST`s to `${apiBaseUrl}/api/auth/login`; on success, persists `{token, username, role}` |
-| `logout()` | method → `void` | Clears in-memory state and `localStorage` |
-| `getToken()` | method → `string \| null` | Current bearer token, read by `authInterceptor` |
-| `isAuthenticated` | `computed()` signal → `boolean` | Read by `authGuard` and the nav header |
-| `username` | `computed()` signal → `string \| null` | Read by the nav header |
+| `SubmissionService` | `core/services/submission.service.ts` | `createSubmission`, `listSubmissions` (now with an optional `courseId` param), `getSubmission`, `updateStatus`. **No longer owns dashboard endpoints** (moved to `DashboardService` in D5). |
+| `CourseService` | `core/services/course.service.ts` | `listPublicCourses` (public `GET /api/courses`), `listCoursesForAdmin` (filtered), `getCourse`, `createCourse`, `updateCourse` |
+| `DashboardService` | `core/services/dashboard.service.ts` | `getDashboardSummary`, `getDashboardOverview`, `getDashboardSettings`, `updateDashboardSettings` |
+| `AuthService` | `core/services/auth.service.ts` | Unchanged since Phase 17 — login/logout, signal-based auth state in `localStorage` |
 
-**Storage: `localStorage`**, under key `auth`, as `{token, username, role}` JSON — chosen over
-`sessionStorage`/in-memory-only. The backend returns the JWT as a JSON response body field, not a cookie,
-so an `httpOnly` cookie (immune to JS reads) isn't available without backend changes; given that,
-`localStorage`/`sessionStorage` carry the same XSS exposure (either is readable by any script on the page's
-origin), and `localStorage` was preferred for surviving a page reload/new tab. State is seeded from
-`localStorage` on service construction, so a reload doesn't force re-login. Full tradeoff writeup: this
-file's own doc comments and `CHECKLIST.md`'s Phase 17 log entry.
-
-### 4.3 Cross-check against backend DTOs
-
-- `SubmissionController` → `POST /api/submissions`
-- `AuthController` → `POST /api/auth/login`
-- `AdminSubmissionController` → `GET /api/admin/submissions`, `GET /api/admin/submissions/{id}`,
-  `PATCH /api/admin/submissions/{id}/status`
-- `DashboardController` → `GET /api/admin/dashboard/summary`
-
-The base URL is built once per resource group from `environment.apiBaseUrl` (no `localhost` hardcoded
-anywhere in either service or any component).
+All follow the same `providedIn: 'root'`/`inject(HttpClient)`/`environment.apiBaseUrl`-prefixed-URL/JSDoc
+convention established in Phase 12. `authInterceptor` (unchanged) attaches the bearer token to any request
+whose URL starts with `${apiBaseUrl}/api/admin/` — this covers the new `/api/admin/courses` and
+`/api/admin/dashboard/*` endpoints automatically, no interceptor changes were needed for Plan 2.
 
 ---
 
-## 5. Models/Interfaces
+## 5. Models
 
-All under `src/app/models/`, and all documented in-source as mirroring specific backend DTOs.
+All under `src/app/models/`, documented in-source as mirroring specific backend DTOs — see each file's own
+JSDoc for the exact field-by-field correspondence. Summary of what changed in Plan 2:
 
-| TypeScript type | File | Mirrors (backend) | Fields |
-|---|---|---|---|
-| `SubmissionStatus` (union type) | `submission.model.ts` | `com.register.backend.enums.SubmissionStatus` | `'NEW' \| 'IN_PROGRESS' \| 'COMPLETED'` |
-| `Submission` | `submission.model.ts` | `SubmissionResponse` | `id: number; fullName: string; email: string \| null; phone: string \| null; message: string \| null; status: SubmissionStatus; createdAt: string; updatedAt: string` |
-| `CreateSubmissionRequest` | `submission.model.ts` | `CreateSubmissionRequest` (request DTO) | `fullName: string; email?: string; phone?: string; message?: string` |
-| `UpdateSubmissionStatusRequest` | `submission.model.ts` | `UpdateSubmissionStatusRequest` (request DTO) | `status: SubmissionStatus` |
-| `PageResponse<T>` | `page-response.model.ts` | `PageResponse<T>` | `content: T[]; page: number; size: number; totalElements: number; totalPages: number` |
-| `DashboardSummary` | `dashboard-summary.model.ts` | `DashboardSummaryResponse` | `total: number; new: number; inProgress: number; completed: number; submittedToday: number` |
-| `LoginRequest` | `auth.model.ts` | `LoginRequest` (request DTO) | `username: string; password: string` |
-| `LoginResponse` | `auth.model.ts` | `LoginResponse` (response DTO) | `token: string; username: string; role: string` |
+| File | Change |
+|---|---|
+| `submission.model.ts` | `SubmissionStatus` → 4 values; `Submission`/`CreateSubmissionRequest` gained `courseId` |
+| `dashboard-summary.model.ts` | `DashboardSummary` → new 5-count shape (`total`, `pendingConsultation`, `confirmed`, `inProgress`, `graduated`, `submittedToday`) |
+| `course.model.ts` | **New** — `Course`, `LicenseClass`, `CourseAvailabilityStatus`, `CreateCourseRequest`, `UpdateCourseRequest` |
+| `dashboard-overview.model.ts` | **New** — `DashboardOverview`, `MonthlyRegistrationCount`, `DashboardSettings`, `UpdateDashboardSettingsRequest` |
 
-Verified against the live backend DTO source (`backend/src/main/java/com/register/backend/dto/`):
-- `CreateSubmissionRequest.java` has exactly `fullName` (`@NotBlank @Size(max=200)`), `email`
-  (`@Email @Size(max=255)`, no `@NotBlank`/`@NotNull` — optional), `phone` (`@Size(max=30)`), `message`
-  (`@Size(max=2000)`) — **no `company`/`position` fields** (an earlier-phase deviation from the original
-  roadmap, carried through consistently into the frontend model, form, table, and detail page).
-- `SubmissionResponse.java` fields match `Submission` exactly, including `createdAt`/`updatedAt` typed as
-  `LocalDateTime` server-side, serialized by Jackson as ISO-8601-ish strings and kept as `string` (not
-  parsed into `Date`) on the client.
-- `DashboardSummaryResponse.java`'s `newCount` component is annotated `@JsonProperty("new")`, so the wire
-  key is `new` — the `DashboardSummary` interface uses `new` as the literal property name to match (valid
-  TypeScript; `summary.new` also compiles under this project's strict `tsconfig`).
-- `PageResponse<T>.java` fields match `PageResponse<T>` exactly.
-- `LoginRequest.java`/`LoginResponse.java` fields match `auth.model.ts` exactly (verified against
-  `backend/src/main/java/com/register/backend/dto/{request/LoginRequest,response/LoginResponse}.java`).
-
-Timestamp/date handling: no dates are ever parsed client-side into JS `Date` objects; they're kept as
-opaque strings and only formatted for display via Angular's `date` pipe (`date: 'medium'`) in the detail
-and dashboard-table templates. The JWT string itself is likewise never decoded/parsed client-side — it's
-stored and sent as an opaque string (see [Section 6](#6-interceptors-guards-and-environment-config)).
+Same conventions as before: no dates ever parsed into JS `Date` objects (kept as opaque ISO strings,
+formatted only via Angular's `date` pipe at render time); the JWT is likewise never decoded client-side.
 
 ---
 
 ## 6. Interceptors, Guards, and Environment Config
 
-### 6.1 `authInterceptor` (`core/interceptors/auth.interceptor.ts`)
+Unchanged since Phase 17 — `authInterceptor` (allowlist-matches `/api/admin/` URLs, handles global 401 →
+logout + redirect) and `authGuard` (checks `AuthService.isAuthenticated()`, redirects to `/admin/login`)
+both needed **zero changes** for Plan 2, since every new endpoint follows the same `/api/admin/**` URL
+convention the interceptor already matches.
 
-Functional `HttpInterceptorFn`, registered via `provideHttpClient(withInterceptors([authInterceptor]))` in
-`app.config.ts`. Two responsibilities:
-
-1. **Attach the bearer token** — computes `ADMIN_API_PREFIX = ${environment.apiBaseUrl}/api/admin/` once;
-   any outgoing request whose URL starts with that prefix gets `Authorization: Bearer <token>` added (via
-   `req.clone()`) if a token is currently stored. This is an **allowlist match**, not a denylist — requests
-   to `/api/submissions`, `/api/health`, and `/api/auth/login` structurally never match the prefix, so the
-   token is never sent there by construction (satisfies the roadmap's "do not send JWT to public endpoints
-   unnecessarily" requirement without relying on remembering to exclude specific URLs).
-2. **Global 401 handling** — on a `401 HttpErrorResponse` from a request that *was* admin-prefixed, calls
-   `authService.logout()` and `router.navigate(['/admin/login'])` before rethrowing the error. This is why
-   `DashboardComponent`/`SubmissionDetailComponent` need no 401-specific code of their own.
-
-### 6.2 `authGuard` (`core/guards/auth.guard.ts`)
-
-Functional `CanActivateFn`. Returns `true` if `authService.isAuthenticated()`, otherwise
-`router.createUrlTree(['/admin/login'])` (a redirect, not a hard `window.location` navigation). Applied via
-`canActivate: [authGuard]` on `/admin/dashboard` and `/admin/submissions/:id` in `app.routes.ts`.
-
-Note: this only checks whether a token is *present* in the auth state, not whether it has already expired
-— an expired-but-still-stored token passes the guard, and the first subsequent admin API call then 401s,
-which `authInterceptor` catches and redirects from. This is an intentional "let the server be the source of
-truth on validity" design, consistent with the backend trusting the token's own claims with no server-side
-session.
-
-### 6.3 Environment config
-
-`src/environments/environment.ts` (production) and `environment.development.ts` (development, swapped in
-via `angular.json`'s `fileReplacements` for the `development` build configuration). Both currently set:
-```ts
-{ production: <bool>, apiBaseUrl: 'http://localhost:8080' }
-```
-`environment.apiBaseUrl` is the single source of the backend's base URL, consumed by `SubmissionService`,
-`AuthService`, and `authInterceptor` alike. No production backend is deployed yet, so both environments
-point at the same local URL for now — the production file is deliberately left with a comment flagging it
-needs updating at deploy time (a later roadmap phase, "Phase 24 — Deploy Angular to Vercel").
-
-### 6.4 CORS (backend side, relevant to the frontend's ability to call the API)
-
-`backend`'s `CorsConfig` allows origins from `app.cors.allowed-origins` (env var `ALLOWED_ORIGINS`, default
-`http://localhost:4200` — the default Angular dev-server port, i.e. `ng serve`), methods `GET, POST,
-PATCH, OPTIONS`, headers `Content-Type, Authorization`. No `allowCredentials`, no wildcard origin. `OPTIONS`
-preflight is explicitly permitted without authentication on the backend's security filter chain, so
-preflight to protected `/api/admin/**` routes isn't itself blocked.
-
-### 6.5 App-level providers (`src/app/app.config.ts`)
-
-`provideZoneChangeDetection({ eventCoalescing: true })`, `provideRouter(routes)`,
-`provideHttpClient(withInterceptors([authInterceptor]))`, `provideAnimationsAsync()` (Angular Material's
-async animations loader — needed for Material components like `mat-select`/`mat-snack-bar` to animate).
+`environment.ts`'s `apiBaseUrl` points at the live production backend
+(`https://backed-website-register.onrender.com`) as of the Phase 23 deployment — see `README.md` and
+`docs/deployment/render-backend-deployment.md`.
 
 ---
 
 ## 7. How to Run
 
-See `clientUI/README.md` (standard Angular CLI generated instructions: `ng serve`, `ng build`, `ng test`)
-and the root `CLAUDE.md` for how this fits into the wider project (backend must be running separately on
-`http://localhost:8080` — see `CLAUDE.md`'s Commands section — for any of the pages to successfully load or
-submit data; the public form and admin pages will otherwise show HTTP error snack bars). No proxy config
-file (`proxy.conf.json`) exists — the frontend talks to the backend directly cross-origin, relying on the
-backend's CORS configuration described above rather than a dev-server proxy.
-
-To exercise the admin flow locally: start the backend, log in at `/admin/login` with the seeded dev
-credentials (default `admin` / see `README.md`'s env var table — override via `ADMIN_USERNAME`/
-`ADMIN_PASSWORD` before any real deployment), then navigate to `/admin/dashboard`.
+See `clientUI/README.md` and the root `CLAUDE.md`. Backend must be running (locally on `:8080`, or point
+`environment.development.ts` at the live Render instance) for any page to load real data. To exercise the
+full admin flow: log in at `/admin/login`, land on `/admin/overview`, navigate via the sidebar to Students/
+Courses. To exercise the public flow: visit `/`, scroll to `#dangky`, submit — the created submission is
+immediately visible in `/admin/students` (cross-checked end to end during D6's verification).
 
 ---
 
 ## Not Yet Implemented
 
-- **No shared/layout components beyond the nav header.** `src/app/shared/` is still empty (just a
-  `.gitkeep`) — no other reusable UI pieces exist yet.
-- **No wildcard/404 route** in `app.routes.ts` for unmatched client-side paths.
-- **No client-side sorting UI** on the dashboard table — the backend's default `createdAt DESC` ordering is
-  used as-is; no `MatSort` is wired up.
-- **No token-expiry-aware UX** beyond the reactive 401 → logout → redirect flow — e.g. no "your session is
-  about to expire" warning, no silent token refresh (the backend issues no refresh tokens).
-- **Docker / deployment (roadmap Phases 20, 24)** — no Angular Dockerfile, no Vercel deployment configured
-  yet; `environment.ts`'s `apiBaseUrl` still points at `localhost:8080`.
+- **No shared/layout components beyond the admin sidebar.** `src/app/shared/` is still empty.
+- **No wildcard/404 route.**
+- **No client-side sorting UI** on the Students table (backend default `createdAt DESC` used as-is).
+- **No token-expiry-aware UX** beyond the reactive 401 → logout → redirect flow.
+- **Week-strip mini-calendar** on the Courses page (from the original mockup) — skipped in D5 as
+  disproportionate effort for a first pass; the table + filters + create/edit dialog are the load-bearing
+  parts of that page.
+- **Vercel deployment** — code is ready (see `docs/deployment/vercel-frontend-deployment.md`), but no
+  Vercel project has actually been created from this environment (no credentials).
+- **Minor UI language inconsistency**: the Courses page's main action button label was left in Vietnamese
+  ("Thêm khoá học") while the dialog itself and most other UI text is English — noted during review, not
+  yet fixed.
