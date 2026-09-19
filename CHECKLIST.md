@@ -1489,7 +1489,15 @@ not yet confirmed** — see that plan's "Decisions Needed" section before starti
 
 - [x] **Milestone 1 — Backend MVP core path** (`POST /api/submissions` → Spring Boot → PostgreSQL) —
   reachable and tested via curl/Postman as of Phase 4/5.
-- [ ] Milestone 2 — Public MVP (Angular form live)
-- [ ] Milestone 3 — Admin MVP (admin can see submitted data)
-- [ ] Milestone 4 — Secured MVP (admin login required)
-- [ ] Milestone 5 — Internet Deployment
+- [x] **Milestone 2 — Public MVP (Angular form live)** — the public registration flow (Phase 13, now the
+  landing page's registration section per Plan 2 D6) has been live at
+  `https://website-register-roan.vercel.app` since Phase 24, verified end-to-end.
+- [x] **Milestone 3 — Admin MVP (admin can see submitted data)** — the admin Students/Submission Detail
+  pages (Phases 14–15, restructured into Overview/Students/Courses per Plan 2 D4–D5) are live at the same
+  URL, reading real data from the deployed backend.
+- [x] **Milestone 4 — Secured MVP (admin login required)** — Phase 16 (JWT admin auth) + Phase 17 (Angular
+  login/guard) are live; the deployed `/admin/**` routes redirect to `/admin/login` when unauthenticated,
+  and Phase 25 hardened the deployed credentials (fail-fast secrets, rate-limited login attempts).
+- [x] **Milestone 5 — Internet Deployment** — Phase 23 (Render, `https://backed-website-register.onrender.com`)
+  and Phase 24 (Vercel, `https://website-register-roan.vercel.app`) are both live, with CORS between them
+  independently verified working.
