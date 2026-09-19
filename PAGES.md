@@ -160,8 +160,11 @@ message with a back link. "Back to Students" returns to `/admin/students`.
 
 ## Not yet built
 
-- **Vercel deployment** — the code is ready (see `docs/deployment/vercel-frontend-deployment.md`), but no
-  Vercel project has actually been created yet.
 - **Week-strip mini-calendar** on the Courses page (from the original design mockup) — skipped as a first
   pass; the table, filters, and create/edit dialog are the parts that matter.
 - **404 page** — there's no wildcard route for an unmatched URL.
+
+## Live
+
+- **Frontend:** `https://website-register-roan.vercel.app` (Vercel, Phase 24).
+- **Backend:** `https://backed-website-register.onrender.com` (Render, Phase 23).
