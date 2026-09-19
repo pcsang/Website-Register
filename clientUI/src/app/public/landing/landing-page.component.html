@@ -35,37 +35,40 @@
         </span>
         <h1 class="hero__title">Học lái xe an toàn, đậu ngay lần đầu</h1>
         <p class="hero__description">
-          DriveUp đồng hành cùng bạn từ những buổi học đầu tiên đến khi tự tin cầm vô lăng, với đội ngũ
-          giáo viên tận tâm và quy trình đào tạo bài bản.
+          DriveUp đồng hành cùng bạn từ buổi học đầu tiên đến khi tự tin cầm vô lăng.
         </p>
         <div class="hero__actions">
-          <a class="btn btn--primary btn--lg" href="#dangky">Đăng ký học ngay</a>
+          <a class="btn btn--primary btn--lg" href="#dangky">Đăng ký ngay</a>
           <a class="btn btn--outline btn--lg" href="#courses">Xem khoá học</a>
-        </div>
-        <div class="hero__stats">
-          <div class="hero__stat">
-            <span class="hero__stat-value">15.000+</span>
-            <span class="hero__stat-label">Học viên đã tốt nghiệp</span>
-          </div>
-          <div class="hero__stat">
-            <span class="hero__stat-value">98%</span>
-            <span class="hero__stat-label">Tỷ lệ đậu lần đầu</span>
-          </div>
-          <div class="hero__stat">
-            <span class="hero__stat-value">12</span>
-            <span class="hero__stat-label">Chi nhánh toàn quốc</span>
-          </div>
         </div>
       </div>
 
+      <!-- TODO(design): placeholder icon panel — replace with a real photo (instructor + student
+           in a car, or a car on the road) before this page ships to real users. -->
       <div class="hero__illustration">
         <div class="hero__illustration-panel">
           <svg lucideCar [size]="160"></svg>
         </div>
-        <div class="hero__illustration-badge">
-          <svg lucideCircleCheckBig [size]="20"></svg>
-          Đã đăng ký thành công!
-        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats strip: kept out of the hero on purpose, one focused message per hero -->
+  <section class="stats-strip">
+    <div class="stats-strip__inner">
+      <div class="stats-strip__stat">
+        <span class="stats-strip__value">15.000+</span>
+        <span class="stats-strip__label">Học viên đã tốt nghiệp</span>
+      </div>
+      <span class="stats-strip__divider"></span>
+      <div class="stats-strip__stat">
+        <span class="stats-strip__value">98%</span>
+        <span class="stats-strip__label">Tỷ lệ đậu lần đầu</span>
+      </div>
+      <span class="stats-strip__divider"></span>
+      <div class="stats-strip__stat">
+        <span class="stats-strip__value">12</span>
+        <span class="stats-strip__label">Chi nhánh toàn quốc</span>
       </div>
     </div>
   </section>
@@ -74,7 +77,6 @@
   <section id="features" class="section">
     <div class="section__inner">
       <div class="section__heading">
-        <span class="eyebrow">Vì sao chọn DriveUp</span>
         <h2>Đồng hành cùng bạn từ ngày đầu đến khi cầm bằng</h2>
       </div>
 
@@ -118,7 +120,6 @@
   <section id="courses" class="section section--white">
     <div class="section__inner">
       <div class="section__heading">
-        <span class="eyebrow">Khoá học</span>
         <h2>Chọn hạng bằng phù hợp với bạn</h2>
       </div>
 
@@ -171,11 +172,10 @@
   <section id="process" class="section">
     <div class="section__inner">
       <div class="section__heading">
-        <span class="eyebrow">Quy trình</span>
         <h2>Chỉ 4 bước để bắt đầu</h2>
       </div>
 
-      <div class="process-steps">
+      <div class="process-timeline">
         @for (item of processSteps; track item.step) {
           <div class="process-step">
             <span class="process-step__circle" [class.process-step__circle--filled]="item.step === 1">
@@ -193,13 +193,12 @@
   <section id="reviews" class="section section--white">
     <div class="section__inner">
       <div class="section__heading">
-        <span class="eyebrow">Đánh giá</span>
         <h2>Học viên nói gì về DriveUp</h2>
       </div>
 
       <div class="testimonials-grid">
-        @for (testimonial of testimonials; track testimonial.name) {
-          <div class="testimonial-card">
+        @for (testimonial of testimonials; track testimonial.name; let i = $index) {
+          <div class="testimonial-card" [class.testimonial-card--featured]="i === 0">
             <div class="testimonial-card__stars">
               @for (star of stars; track star) {
                 <svg lucideStar [size]="16"></svg>

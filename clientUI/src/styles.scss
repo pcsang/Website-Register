@@ -64,7 +64,10 @@
   --sidebar-text-muted: #5c6480;
 
   // Typography
-  --font-heading: 'Sora', 'Helvetica Neue', sans-serif;
+  // Be Vietnam Pro (not Sora — Sora ships no Vietnamese unicode subset on Google
+  // Fonts, so Vietnamese diacritics in headings silently fell back to the system
+  // font while Manrope body text rendered fine, making headings look off-brand).
+  --font-heading: 'Be Vietnam Pro', 'Helvetica Neue', sans-serif;
   --font-body: 'Manrope', 'Helvetica Neue', sans-serif;
 }
 
@@ -85,7 +88,7 @@ html {
       ),
       typography: (
         plain-family: 'Manrope, "Helvetica Neue", sans-serif',
-        brand-family: 'Sora, "Helvetica Neue", sans-serif',
+        brand-family: '"Be Vietnam Pro", "Helvetica Neue", sans-serif',
       ),
       density: 0,
     )
