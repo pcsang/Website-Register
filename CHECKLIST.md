@@ -734,7 +734,7 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     deployment, verify" requirement: `GET /api/health` → `200 {"status":"UP"}` (after a ~71s cold start —
     Render free tier + Neon free tier both sleep on inactivity, expected, not a problem) and
     `POST /api/submissions` with a real body → `201 Created` with the persisted row. Box checked.
-- [ ] **Phase 24 — Deploy Angular to Vercel** (readiness + guide done; actual deploy still pending)
+- [x] **Phase 24 — Deploy Angular to Vercel**
   - Log (2026-09-16): `clientUI/src/environments/environment.ts`'s `apiBaseUrl` was still
     `http://localhost:8080` (would have shipped `localhost` in the production bundle) — replaced with a
     clearly-labeled placeholder (`https://REPLACE_WITH_YOUR_RENDER_BACKEND_URL.onrender.com`) plus a
@@ -756,10 +756,22 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     for all 5 required user flows (public form, admin login, dashboard, detail, status update) plus an
     explicit refresh-on-deep-route check, and troubleshooting for CORS/deep-link-404/blank-page failure
     modes.
-  - **Not done (no Vercel credentials available in this environment — inherently a you-must-do-this step,
-    and also blocked on Phase 23 actually being live first):** no Vercel project created, no live
-    deployment, no production Vercel URL exists yet. Box left unchecked until that's done and the
-    verification checklist above has actually been run against the real deployment.
+  - **Live (2026-09-19):** deployed by the user (Vercel account/project creation is inherently a
+    you-must-do-this step, done outside this environment) to
+    `https://website-register-roan.vercel.app`. Verified directly rather than taking the user's word for
+    it alone: the deployed page's `<style>` block contains the DriveUp design tokens (`--color-primary:
+    #2b5fff`, `--color-accent: #f97316`, Sora/Manrope fonts) — confirming Vercel built from `develop` (the
+    Plan 2 DriveUp redesign), not the stale `main` flagged as Critical in Phase 26's
+    `docs/architecture-review.md` §20. Downloaded the deployed `main-*.js` bundle directly and grepped it:
+    the baked-in `apiBaseUrl` is the real `https://backed-website-register.onrender.com`, not the
+    Phase-24-readiness-era placeholder or `localhost`. Confirmed Render's CORS is already closing the
+    Phase 23↔24 circular dependency this phase's own doc warned about: an `OPTIONS` preflight and a real
+    `POST /api/auth/login` against the Render backend, both sent with
+    `Origin: https://website-register-roan.vercel.app`, came back with
+    `access-control-allow-origin: https://website-register-roan.vercel.app` — so `ALLOWED_ORIGINS` on
+    Render has already been updated to the real Vercel URL, not left on the `localhost:4200` default.
+    Local TLS interception (the same corporate-proxy issue noted in earlier phases) required `curl
+    --ssl-no-revoke`; unrelated to the deployment itself.
 
 ## Review (Phases 25–26)
 
@@ -824,7 +836,35 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
       the lower-effort first step if spam becomes an actual observed problem. Files changed this phase:
       `docs/security-review.md`, `RateLimitingFilter.java` + `RateLimitingFilterTest.java`,
       `application-prod.yml`, `SecurityConfig.java`, `application.yml`, `application-test.yml`.
-- [ ] **Phase 26 — Final Architecture Review**
+- [x] **Phase 26 — Final Architecture Review**
+  - Log (2026-09-19): Full 20-area review written to `docs/architecture-review.md`, classified Critical /
+    Should Improve / Nice to Have per the phase's own instructions (explicitly not recommending
+    microservices/Kafka/Kubernetes/CQRS/event sourcing/Redis/complex DDD — none of those came up as
+    warranted for an app this size). Read every controller, service, repository, entity, mapper, DTO,
+    exception handler, security class, Flyway migration, Docker/Compose file, and the Angular
+    routes/guards/interceptors/services directly rather than relying on prior-session memory of them.
+    15 of 20 areas: no issue (project structure, DTO/entity/validation/exception-handling design, search/
+    filter/pagination, Angular architecture, Docker, prod config, error handling — Spring Security/JWT/
+    CORS/general security/logging point to `docs/security-review.md` rather than re-litigating it). 4 areas
+    "Nice to have" (low severity, correctly deferred): a `PATCH` used for a full-replacement course update
+    where `PUT` would be more precise; no DB indexes on frequently-filtered columns
+    (status/course_id/created_at/license_class/branch/start_date) plus an N-extra-COUNT-queries pattern in
+    the course list endpoint, both fine at current row counts; JWT kept in `localStorage` rather than an
+    httpOnly cookie (a considered tradeoff given Vercel/Render are different domains, not an oversight);
+    `extractErrorMessage` duplicated across ~7 Angular components (pre-existing, cosmetic). 1 area "Should
+    improve": all 9 frontend `.spec.ts` files are unmodified Angular CLI "should create" scaffolds with zero
+    real assertions — `auth.guard.ts`/`auth.interceptor.ts` specifically are small, security-relevant, and
+    currently untested; recommended (not required immediately) before the next auth-related change. 1 area
+    **Critical**: `main` is still a single stale `7040b50 Initial project` commit while
+    `docs/deployment/render-backend-deployment.md` documents deploying from `main` — confirmed this is not
+    hypothetical, since the CORS bug investigated earlier this session traced back to exactly this
+    divergence, meaning the live Render/Vercel deployment has run `main`'s pre-Phase-16 code at least at
+    some point, so none of Phases 16–25 (including every Phase 25 security fix) can be assumed live.
+    Surfaced formally here as this phase's explicit job, having already come up twice before in this
+    session with the user choosing to defer it both times; left as a decision for the user (fast-forward
+    `main` to `develop`, or point Render/Vercel at `develop` directly) rather than resolved unilaterally.
+    No code changed by this phase — it is a read-only review; only `docs/architecture-review.md` (new) and
+    this checklist entry were added.
 
 ---
 
