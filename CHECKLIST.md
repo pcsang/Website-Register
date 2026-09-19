@@ -763,7 +763,67 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
 
 ## Review (Phases 25–26)
 
-- [ ] **Phase 25 — Production Security Review**
+- [x] **Phase 25 — Production Security Review**
+  - Log (2026-09-19): Full 18-area review written to `docs/security-review.md`, scoped against the roadmap's
+    Phase 25 checklist and its explicit "don't over-engineer, focus on realistic risks for a small public
+    web application" instruction. 15 of 18 areas found already adequate (verified directly — read the
+    actual handlers/filters/queries, grepped for logging/XSS/secret-leak patterns, didn't just take the
+    existing code's word for it). 2 areas fixed as part of this review:
+    - **JWT secret / admin password management (areas 4 & 15, HIGH):** `application.yml`'s
+      `${JWT_SECRET:dev-only-...}` / `${ADMIN_PASSWORD:dev-only-...}` fallbacks apply in every profile
+      including `prod` — if either env var were ever left unset on Render, the app would start silently
+      with a secret/password that's plaintext-visible in this repo's git history. `application-prod.yml`
+      now overrides both as `${JWT_SECRET}` / `${ADMIN_PASSWORD}` with **no fallback**, so `prod` fails
+      fast at startup instead. Verified live: booting with `SPRING_PROFILES_ACTIVE=prod` and no env vars
+      set fails with a `PropertySourcesPlaceholderConfigurer` error; booting with both set starts
+      successfully and `/api/health` returns `200`. Confirmed with the user directly that Render's real
+      `JWT_SECRET` is already set to a real (non-default) value, so this was not live-exploitable at the
+      time of review — a forged-token test against the live endpoint was attempted to verify this
+      independently but was correctly blocked by Claude Code's own safety controls as indistinguishable
+      from a real attack, so the user's direct confirmation is what this relies on instead.
+    - **Rate limiting (area 17, MEDIUM) + login brute-force (closely related):** new in-memory,
+    per-client-IP `RateLimitingFilter` (`backend/src/main/java/com/register/backend/security/RateLimitingFilter.java`),
+    an `OncePerRequestFilter` applied only to `POST /api/submissions` (default 5/min,
+    `RATE_LIMIT_SUBMISSIONS_PER_MINUTE`) and `POST /api/auth/login` (default 10/min,
+    `RATE_LIMIT_LOGIN_ATTEMPTS_PER_MINUTE`) — every other request passes through untouched. Fixed 1-minute
+    window per client IP per endpoint, tracked in a `ConcurrentHashMap` updated atomically via
+    `compute(...)` (no separate lock needed); a periodic opportunistic sweep evicts expired entries so the
+    map doesn't grow unbounded on a long-running instance. Client IP is read from the first entry of
+    `X-Forwarded-For` (Render sits behind a proxy) with a `getRemoteAddr()` fallback for local dev. On
+    limit exceeded, writes a `429` in the app's standard `ErrorResponse` JSON shape, same pattern as
+    `RestAuthenticationEntryPoint`/`RestAccessDeniedHandler`. Wired into `SecurityConfig.java` via
+    `addFilterBefore`, positioned ahead of `JwtAuthenticationFilter` (cheapest check first — no reason to
+    parse/verify a JWT on a request about to be rejected with 429 anyway); `SecurityConfig`'s constructor
+    now also takes `ObjectMapper` plus the two `@Value`-bound limits. New config block in
+    `application.yml` (`app.rate-limit.submissions-per-minute` / `app.rate-limit.login-attempts-per-minute`,
+    both `${VAR:default}` style). `application-test.yml` overrides both to `1000` — `SubmissionApiIntegrationTest`
+    logs in via a real `POST /api/auth/login` call in `@BeforeEach` before all ~16 of its `@Test` methods
+    within the same shared Spring context/1-minute window, which the real default (10) would have started
+    rejecting partway through the class; this override only prevents the suite from rate-limiting itself,
+    it doesn't touch the filter's actual logic. New `RateLimitingFilterTest` (unit test against the filter
+    directly, no Spring context, so it can use tight deterministic limits and can't interfere with/be
+    interfered by the shared-context integration suites) covering: under-limit requests pass through,
+    the (limit+1)th request gets 429 with the correct JSON shape, different client IPs are tracked
+    independently, and `X-Forwarded-For` (not `getRemoteAddr()`) is what the bucket key is actually derived
+    from. Verified: `./gradlew clean build` — 93/93 tests pass (88 pre-existing + 5 new).
+    Manually verified against a locally running instance (real Postgres, `bootRun`): 8 rapid
+    `POST /api/submissions` → first 5 returned `201`, 6th–8th returned `429` with the standard error body;
+    13 rapid `POST /api/auth/login` (wrong password) → first 10 returned `401` (normal auth failure, not
+    rate-limited), 11th–13th returned `429`; confirmed a request with a different simulated client IP via
+    `X-Forwarded-For` still succeeded (normal `401`) while `localhost` was still rate-limited, proving
+    per-IP isolation and that the header is genuinely what's being read.
+    Independently re-verified all of the above directly (not just trusting the sub-agent's report that did
+    this work): read `RateLimitingFilter.java`/`SecurityConfig.java`/`RateLimitingFilterTest.java` in full,
+    confirmed `HEAD` matched `origin/develop` before and after (no unauthorized commits), ran a clean
+    `./gradlew clean build` myself (93/93 passed), then booted a fresh local instance and re-ran the same
+    curl-loop scenarios independently — 5×`201`+3×`429` on submissions, 10×`401`+3×`429` on login, and a
+    distinct `X-Forwarded-For` IP unaffected by the other's rate limit — all matched exactly. Deferred
+    (documented in `docs/security-review.md` §18, not fixed): CAPTCHA/bot protection for the public
+      submission form — requires an external service + API keys the user would need to create, and the
+      phase's own instructions warn against over-engineering a small app; recommended a honeypot field as
+      the lower-effort first step if spam becomes an actual observed problem. Files changed this phase:
+      `docs/security-review.md`, `RateLimitingFilter.java` + `RateLimitingFilterTest.java`,
+      `application-prod.yml`, `SecurityConfig.java`, `application.yml`, `application-test.yml`.
 - [ ] **Phase 26 — Final Architecture Review**
 
 ---

@@ -23,3 +23,14 @@ spring:
     # PostgreSQL-flavored migration SQL isn't a target here, and keeping this suite's H2 setup unchanged
     # was the whole point of the Phase 19 hermetic-test decision.
     enabled: false
+
+app:
+  rate-limit:
+    # Phase 25's RateLimitingFilter is a real, shared singleton bean for the whole life of this profile's
+    # Spring context - and SubmissionApiIntegrationTest's @BeforeEach logs in via a real POST
+    # /api/auth/login call before every one of its ~16 @Test methods, all well within the same 1-minute
+    # window. The app's real (much lower) defaults would start rejecting those legitimate test logins with
+    # 429 partway through the class. These limits are only about not rate-limiting this test suite against
+    # itself; RateLimitingFilterTest exercises the actual limiting behavior directly, unaffected by this.
+    submissions-per-minute: 1000
+    login-attempts-per-minute: 1000

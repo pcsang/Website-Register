@@ -16,3 +16,14 @@ spring:
       # Neon's free/starter tiers cap concurrent connections fairly low, and Render's smallest instances
       # run a single app instance - a small fixed pool avoids exhausting Neon's connection limit.
       maximum-pool-size: 5
+
+# Phase 25 security review: application.yml's ${JWT_SECRET:dev-only-...}/${ADMIN_PASSWORD:dev-only-...}
+# defaults exist purely for local dev convenience - if either env var is left unset in a real deployment,
+# the app would otherwise silently start with a secret/password that's plaintext-visible in this repo's
+# git history. Overriding both here with no fallback value means Spring fails to start (a clear, loud
+# startup error) rather than silently running with a known-weak credential when SPRING_PROFILES_ACTIVE=prod.
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  admin:
+    password: ${ADMIN_PASSWORD}
