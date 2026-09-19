@@ -172,36 +172,7 @@
 .hero__actions {
   display: flex;
   gap: 16px;
-  margin-bottom: 48px;
   flex-wrap: wrap;
-}
-
-.hero__stats {
-  display: flex;
-  gap: 40px;
-  flex-wrap: wrap;
-}
-
-.hero__stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.hero__stat-value {
-  font-family: var(--font-heading);
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--color-text);
-}
-
-.hero__stat-label {
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.hero__illustration {
-  position: relative;
 }
 
 .hero__illustration-panel {
@@ -216,25 +187,49 @@
   color: var(--color-primary);
 }
 
-.hero__illustration-badge {
-  position: absolute;
-  left: 8px;
-  bottom: 24px;
+// -- Stats strip ---------------------------------------------------------------
+// A thin trust strip directly under the hero (never inside it) — see hero__actions above.
+.stats-strip {
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  padding: 28px 24px;
+}
+
+.stats-strip__inner {
+  max-width: 1200px;
+  margin: 0 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: var(--color-surface);
-  padding: 12px 18px;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-soft-lg);
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--color-text);
+  justify-content: center;
+  gap: 48px;
+  flex-wrap: wrap;
+}
 
-  svg {
-    color: var(--status-graduated-text);
-    flex-shrink: 0;
-  }
+.stats-strip__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.stats-strip__value {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.stats-strip__label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.stats-strip__divider {
+  width: 1px;
+  height: 32px;
+  background: var(--color-border-2);
 }
 
 // -- Shared section shell -------------------------------------------------
@@ -417,17 +412,32 @@ section.section {
   }
 }
 
-// -- Process ------------------------------------------------------------------
-.process-steps {
+// -- Process --------------------------------------------------------------------
+// A connected timeline (not another equal-card grid) — the circles sit as nodes
+// on a through-line so this section reads differently from Features/Reviews.
+.process-timeline {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 24px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 24px;
+    left: 12.5%;
+    right: 12.5%;
+    height: 2px;
+    background: var(--color-border-2);
+  }
 }
 
 .process-step {
   text-align: center;
 
   &__circle {
+    position: relative;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -460,10 +470,13 @@ section.section {
   }
 }
 
-// -- Reviews ------------------------------------------------------------------
+// -- Reviews --------------------------------------------------------------------
+// Asymmetric bento (one featured quote + two stacked) rather than a third equal
+// card grid — see Process above for the same "vary the composition" reasoning.
 .testimonials-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1.3fr 1fr;
+  grid-template-rows: repeat(2, 1fr);
   gap: 24px;
 }
 
@@ -471,6 +484,20 @@ section.section {
   background: var(--color-bg);
   border-radius: var(--radius-lg);
   padding: 28px;
+
+  &--featured {
+    grid-row: 1 / 3;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: var(--color-primary-bg);
+
+    .testimonial-card__quote {
+      font-size: 18px;
+      line-height: 1.6;
+    }
+  }
 
   &__stars {
     display: flex;
@@ -686,12 +713,21 @@ section.section {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .process-steps {
+  .process-timeline {
     grid-template-columns: repeat(2, 1fr);
+
+    &::before {
+      display: none;
+    }
   }
 
   .testimonials-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .testimonial-card--featured {
+    grid-row: auto;
   }
 
   .registration {
@@ -723,8 +759,12 @@ section.section {
     align-items: stretch;
   }
 
-  .hero__stats {
+  .stats-strip__inner {
     gap: 24px;
+  }
+
+  .stats-strip__divider {
+    display: none;
   }
 
   section.section {
@@ -739,8 +779,9 @@ section.section {
     grid-template-columns: 1fr;
   }
 
-  .process-steps {
+  .process-timeline {
     grid-template-columns: 1fr;
+    gap: 32px;
   }
 
   .footer__columns {
