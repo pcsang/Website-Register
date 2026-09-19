@@ -1,0 +1,25 @@
+{
+  "name": "website-register",
+  "version": "1.0.0",
+  "description": "A small system with a public form for submitting contact/inquiry information and an admin area for\r reviewing and managing those submissions.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pcsang/Website-Register.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pcsang/Website-Register/issues"
+  },
+  "homepage": "https://github.com/pcsang/Website-Register#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.2"
+  }
+}
