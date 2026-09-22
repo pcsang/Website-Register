@@ -929,6 +929,49 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     `AdminPaymentControllerTest.java`, `SepayWebhookIntegrationTest.java`, `payment.model.ts`,
     `payment.service.ts`, `submission-detail.component.ts`/`.html`/`.scss`/`.spec.ts`, `styles.scss`.
 
+- [x] **Post-Phase 27 — Full-repo code review + living-doc refresh** (not a roadmap phase — a user-requested
+  review + documentation sync)
+  - Log (2026-09-22): User asked to review the full codebase (not just Phase 27's diff) and bring every
+    existing living doc up to date. Ran three independent passes in parallel: a fresh full-repo code review
+    (backend + frontend, cross-cutting, not limited to Phase 27), a from-source rewrite of
+    `docs/backend-specification.md`, and a from-source rewrite of `docs/ui-specification.md` — each verified
+    against real source rather than trusting the prior doc text or prior session summaries.
+    **Review found one real, pre-existing (not Phase 27) bug, fixed here:** `POST /api/submissions` with a
+    `courseId` that doesn't reference an existing course returned a raw `500` (via the generic
+    `GlobalExceptionHandler` catch-all) instead of a clean `400`, because nothing validates `courseId`
+    exists before the DB's `fk_submissions_course` constraint rejects it — introduced when `courseId` was
+    added to `Submission` (Plan 2 "D2"), predating Phase 27, on a fully public unauthenticated endpoint.
+    Fixed by adding a `DataIntegrityViolationException` handler to `GlobalExceptionHandler` (400, generic
+    client-facing message, full detail logged server-side only — same pattern as every other handler in
+    that class), with a new test (`dataIntegrityViolationReturns400WithGenericMessage`) added to
+    `GlobalExceptionHandlerTest`. Verified: `./gradlew clean build` — all tests pass. One more Low/Nice-to-
+    have item was surfaced (`POST /api/admin/submissions/{id}/payment` always returns `201` even when
+    idempotently returning an already-existing payment) — left as-is, same call as the already-accepted
+    `PATCH`-vs-`PUT` course-update nitpick in `docs/architecture-review.md` §2: cosmetic, not worth a
+    verb-purity-only change at this app's size. Everything else re-checked (Phase 27's own two previously-
+    fixed issues, JWT-in-localStorage, missing DB indexes, the N-extra-COUNT-queries course listing,
+    duplicated `extractErrorMessage`, the frontend test-scaffold gap, the `main`/`develop` divergence) is
+    unchanged from Phase 25/26's findings — not re-flagged as new.
+    **Docs brought up to date, each re-derived from current source rather than patched from memory:**
+    `docs/backend-specification.md` (added `Payment`/`PaymentStatus`, the 3 new endpoints, Phase 25/27
+    security/config sections, corrected a pre-existing "Five service classes" miscount that only listed
+    four, updated the test count and package-layout table), `docs/ui-specification.md` (added the payment
+    card section, `PaymentService`/`payment.model.ts`, updated the "Not Yet Implemented" list), `CLAUDE.md`
+    (the "Current status" section was still frozen at "Phase 1-5 done, Phase 6 next" from the very first
+    session — rewritten to point at the living docs instead of restating a snapshot that will only go stale
+    again; the package-layout table's `config/`/`security/` rows, which still said "empty so far", were
+    corrected), `docs/architecture-review.md` and `docs/security-review.md` (each got a dated addendum
+    covering what Phase 27 introduced relevant to their original scope, without rewriting the historical
+    review itself), `docs/deployment/render-backend-deployment.md` (cross-referenced the 5 new `SEPAY_*` env
+    vars). `PAGES.md` was re-checked against `app.routes.ts` and the actual component directory tree and
+    found already fully accurate (updated the prior session, when the payment section was added) — no
+    change needed. `java-spring-boot-angular-project-prompts.md` and `docs/planning/*` were deliberately
+    left untouched — they're historical/source-of-truth records of what was originally planned, not living
+    "current state" docs, per `docs/backend-specification.md`'s own stated scope.
+    Files changed: `GlobalExceptionHandler.java`, `GlobalExceptionHandlerTest.java`,
+    `docs/backend-specification.md`, `docs/ui-specification.md`, `CLAUDE.md`, `docs/architecture-review.md`,
+    `docs/security-review.md`, `docs/deployment/render-backend-deployment.md`, this checklist entry.
+
 ---
 
 ## DriveUp UI/UX Redesign (proposed — not part of the original numbered roadmap)

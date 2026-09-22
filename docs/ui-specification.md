@@ -4,8 +4,10 @@
 implemented, **plus** the full **DriveUp UI/UX redesign** (Plan 1 reskin + Plan 2 D1–D6 domain adoption —
 see [`docs/planning/`](planning/)): a blue/orange design system replacing the earlier green "landscaping"
 theme, a sidebar+topbar admin shell with three real pages (Overview/Students/Courses), and a full 8-section
-public landing page replacing the old single-field `/form`. See [Not Yet Implemented](#not-yet-implemented)
-for what's still open.
+public landing page replacing the old single-field `/form`. **Plus Phase 27** (SePay Payment Integration,
+not part of the original numbered roadmap): a "Thanh toán" (payment) card on the Submission Detail page for
+generating/viewing a VietQR tuition-payment request, backed by a new `PaymentService`/`Payment` model. See
+[Not Yet Implemented](#not-yet-implemented) for what's still open.
 
 This document describes the actual current implementation under `clientUI/src/`, cross-checked against the
 real source files. For the phased plan and rationale behind deviations, see
@@ -64,7 +66,7 @@ Defined in `src/app/app.routes.ts`, registered via `provideRouter(routes)` in `s
 | `/admin/students` | `StudentsComponent` | `authGuard` | Full searchable/filterable/paginated submissions table (renamed in place from `DashboardComponent`) |
 | `/admin/courses` | `CoursesComponent` | `authGuard` | Course table + create/edit dialog (D5) |
 | `/admin/dashboard` | — | — | Redirects to `/admin/overview` (backward-compat for old bookmarks) |
-| `/admin/submissions/:id` | `SubmissionDetailComponent` | `authGuard` | Submission detail/status update |
+| `/admin/submissions/:id` | `SubmissionDetailComponent` | `authGuard` | Submission detail/status update, plus a "Thanh toán" payment card (Phase 27) |
 
 `authGuard` (`core/guards/auth.guard.ts`, unchanged since Phase 17) redirects an unauthenticated visitor
 to `/admin/login` via `Router.createUrlTree`. Still no wildcard (`**`) "not found" route.
@@ -88,14 +90,16 @@ clientUI/src/
 │   │       ├── auth.service.ts
 │   │       ├── submission.service.ts  submission CRUD/list only (dashboard endpoints moved out, D5)
 │   │       ├── course.service.ts      course CRUD/list, public + admin (D4/D5)
-│   │       └── dashboard.service.ts   summary/overview/settings endpoints (D5)
+│   │       ├── dashboard.service.ts   summary/overview/settings endpoints (D5)
+│   │       └── payment.service.ts     create/get a submission's VietQR payment request (Phase 27)
 │   ├── models/
 │   │   ├── auth.model.ts
 │   │   ├── submission.model.ts        Submission (4-state status + courseId), CreateSubmissionRequest, ...
 │   │   ├── course.model.ts            Course, LicenseClass, CourseAvailabilityStatus, Create/UpdateCourseRequest (D1/D4)
 │   │   ├── dashboard-overview.model.ts DashboardOverview, MonthlyRegistrationCount, DashboardSettings (D5)
 │   │   ├── page-response.model.ts
-│   │   └── dashboard-summary.model.ts DashboardSummary (4-state shape)
+│   │   ├── dashboard-summary.model.ts DashboardSummary (4-state shape)
+│   │   └── payment.model.ts           Payment, PaymentStatus (Phase 27)
 │   ├── public/
 │   │   └── landing/                   LandingPageComponent (D6) — replaces the deleted public/information-form/
 │   ├── shared/                        still empty (.gitkeep)
@@ -121,7 +125,7 @@ clientUI/src/
 | `OverviewComponent` | `/admin/overview` | KPI cards, month chart, upcoming courses, recent registrations |
 | `StudentsComponent` | `/admin/students` | Full submissions table (search/status/course filters, pagination) |
 | `CoursesComponent` | `/admin/courses` | Course table + create/edit `MatDialog` |
-| `SubmissionDetailComponent` | `/admin/submissions/:id` | Single submission detail + status update |
+| `SubmissionDetailComponent` | `/admin/submissions/:id` | Single submission detail + status update + payment (Phase 27) |
 
 ### 3.1 `AdminLayoutComponent` (`admin/layout/`)
 
@@ -221,9 +225,43 @@ list and the branch filter options (a newly created course might introduce a new
 
 ### 3.6 `SubmissionDetailComponent`, `LoginComponent`
 
-Unchanged in structure since Phase 17/the Plan 1 reskin — see this doc's git history for the full
-per-state breakdown (loading/not-found/error/loaded) if needed; only the visual tokens and status-badge
-palette changed, not the logic.
+`LoginComponent` is unchanged in structure since Phase 17/the Plan 1 reskin — see this doc's git history
+for the full per-state breakdown if needed; only the visual tokens changed, not the logic.
+
+`SubmissionDetailComponent`'s core submission detail/status-update card (loading/not-found/error/loaded
+states, the fields grid, the status dropdown + "Update Status" button) is likewise unchanged in structure
+since Phase 17 — only the visual tokens and status-badge palette changed. **New in Phase 27**: a second
+`mat-card`, "Thanh toán" (`payment-card`), rendered only once the submission itself has loaded, that shows
+the submission's tuition payment independently of the status dropdown above it (creating/refreshing a
+payment never touches `submission.status` — the admin still advances that manually):
+
+- On submission load, `ngOnInit` → `loadSubmission` chains into `loadPayment(id)` (`PaymentService.
+  getPayment`) once the submission itself resolves. A 404 here is treated as a normal "no payment requested
+  yet" state (`paymentNotFound = true`), not an error toast — only non-404 failures show a snackbar.
+- **Empty state** (`paymentNotFound`): "Chưa tạo yêu cầu thanh toán." plus a "Tạo mã QR thanh toán" button
+  that calls `generatePaymentQr()` → `PaymentService.createOrGetPayment(submissionId)` (idempotent on the
+  backend — a second click after one already exists just returns the existing pending payment, not a
+  duplicate). Disabled while `paymentGenerating` is `true`; shows a spinner in place of the label and a
+  success snackbar ("Đã tạo mã QR thanh toán.") on completion.
+- **Loaded state** (`payment` populated): the VietQR image (`<img [src]="payment.qrImageUrl">`, served from
+  `img.vietqr.io`, generated server-side — no client-side QR rendering), then a `detail-grid` of amount
+  (`formattedPaymentAmount` — `toLocaleString('vi-VN')` + trailing "đ", matching the course-price formatting
+  convention used elsewhere in the admin area), payment code (`payment.paymentCode`, e.g. `DUP000042`), and
+  a status badge (`paymentStatusLabel` maps `PENDING`/`PAID`/`CANCELLED` → "Chờ thanh toán"/"Đã thanh
+  toán"/"Đã huỷ", styled via the shared `.status-badge` CSS class with a lowercased-status modifier class —
+  same pattern as the submission-status badge described in §3.4, but backed by its own
+  `--status-pending-*`/`--status-paid-*`/`--status-cancelled-*` custom properties and
+  `.status-pending`/`.status-paid`/`.status-cancelled` modifier classes in `styles.scss`, kept distinct from
+  the 4-value `SubmissionStatus` badge tokens since the two enums' value sets overlap in name (`PENDING` vs.
+  `PENDING_CONSULTATION`) but mean different things).
+- A "Làm mới trạng thái" (refresh) button calls `refreshPaymentStatus()` → `PaymentService.getPayment`
+  again, silently (no success snackbar, since this is an explicitly user-triggered re-check, not a mutating
+  action) — used after the student has paid via bank transfer and the admin wants to confirm SePay's webhook
+  already flipped the status to `PAID` server-side. There is **no polling or websocket push**: the admin
+  must click this button manually to see an update.
+- Initial payment load uses the full-card spinner (`paymentLoading && !payment`); the refresh button instead
+  shows its own inline spinner and disables itself while `paymentLoading` is `true`, so refreshing an
+  already-loaded payment doesn't blank the whole card.
 
 ---
 
@@ -234,12 +272,16 @@ palette changed, not the logic.
 | `SubmissionService` | `core/services/submission.service.ts` | `createSubmission`, `listSubmissions` (now with an optional `courseId` param), `getSubmission`, `updateStatus`. **No longer owns dashboard endpoints** (moved to `DashboardService` in D5). |
 | `CourseService` | `core/services/course.service.ts` | `listPublicCourses` (public `GET /api/courses`), `listCoursesForAdmin` (filtered), `getCourse`, `createCourse`, `updateCourse` |
 | `DashboardService` | `core/services/dashboard.service.ts` | `getDashboardSummary`, `getDashboardOverview`, `getDashboardSettings`, `updateDashboardSettings` |
+| `PaymentService` | `core/services/payment.service.ts` | `createOrGetPayment(submissionId)` (`POST /api/admin/submissions/{id}/payment`, idempotent), `getPayment(submissionId)` (`GET .../payment`) (Phase 27) |
 | `AuthService` | `core/services/auth.service.ts` | Unchanged since Phase 17 — login/logout, signal-based auth state in `localStorage` |
 
 All follow the same `providedIn: 'root'`/`inject(HttpClient)`/`environment.apiBaseUrl`-prefixed-URL/JSDoc
 convention established in Phase 12. `authInterceptor` (unchanged) attaches the bearer token to any request
-whose URL starts with `${apiBaseUrl}/api/admin/` — this covers the new `/api/admin/courses` and
-`/api/admin/dashboard/*` endpoints automatically, no interceptor changes were needed for Plan 2.
+whose URL starts with `${apiBaseUrl}/api/admin/` — this covers the new `/api/admin/courses`,
+`/api/admin/dashboard/*`, and (Phase 27) `/api/admin/submissions/{id}/payment` endpoints automatically, no
+interceptor changes were needed for Plan 2 or Phase 27. (The backend's public `POST /api/webhooks/sepay`
+endpoint that actually flips a payment to `PAID` is called by SePay's server directly, never by this
+Angular app, so it has no client-side counterpart here.)
 
 ---
 
@@ -254,6 +296,7 @@ JSDoc for the exact field-by-field correspondence. Summary of what changed in Pl
 | `dashboard-summary.model.ts` | `DashboardSummary` → new 5-count shape (`total`, `pendingConsultation`, `confirmed`, `inProgress`, `graduated`, `submittedToday`) |
 | `course.model.ts` | **New** — `Course`, `LicenseClass`, `CourseAvailabilityStatus`, `CreateCourseRequest`, `UpdateCourseRequest` |
 | `dashboard-overview.model.ts` | **New** — `DashboardOverview`, `MonthlyRegistrationCount`, `DashboardSettings`, `UpdateDashboardSettingsRequest` |
+| `payment.model.ts` | **New (Phase 27)** — `Payment` (mirrors `PaymentResponse`: `id`, `submissionId`, `amount`, `status`, `paymentCode`, `qrImageUrl`, `paidAt`, `createdAt`, `updatedAt`), `PaymentStatus` (`'PENDING' \| 'PAID' \| 'CANCELLED'`, mirrors the backend's `PaymentStatus` enum) |
 
 Same conventions as before: no dates ever parsed into JS `Date` objects (kept as opaque ISO strings,
 formatted only via Angular's `date` pipe at render time); the JWT is likewise never decoded client-side.
@@ -264,8 +307,9 @@ formatted only via Angular's `date` pipe at render time); the JWT is likewise ne
 
 Unchanged since Phase 17 — `authInterceptor` (allowlist-matches `/api/admin/` URLs, handles global 401 →
 logout + redirect) and `authGuard` (checks `AuthService.isAuthenticated()`, redirects to `/admin/login`)
-both needed **zero changes** for Plan 2, since every new endpoint follows the same `/api/admin/**` URL
-convention the interceptor already matches.
+both needed **zero changes** for Plan 2 or Phase 27, since every new endpoint (including Phase 27's
+`/api/admin/submissions/{id}/payment`) follows the same `/api/admin/**` URL convention the interceptor
+already matches.
 
 `environment.ts`'s `apiBaseUrl` points at the live production backend
 (`https://backed-website-register.onrender.com`) as of the Phase 23 deployment — see `README.md` and
@@ -297,3 +341,11 @@ immediately visible in `/admin/students` (cross-checked end to end during D6's v
 - **Minor UI language inconsistency**: the Courses page's main action button label was left in Vietnamese
   ("Thêm khoá học") while the dialog itself and most other UI text is English — noted during review, not
   yet fixed.
+- **No admin UI to cancel a payment** (Phase 27). A `Payment` can be `PENDING`/`PAID`/`CANCELLED` on the
+  backend, but the frontend only ever creates a payment and displays whatever status it's in — there is no
+  button to manually mark a stale/abandoned `PENDING` payment `CANCELLED`. The backend also has no scheduled
+  job to expire old pending payments, so a payment the student never actually pays for stays `PENDING`
+  indefinitely unless someone intervenes directly in the database.
+- **No live/polling payment status update.** `SubmissionDetailComponent`'s payment card only refreshes when
+  the admin manually clicks "Làm mới trạng thái" (or reloads/revisits the page); there's no polling interval
+  or websocket push to reflect the SePay webhook flipping a payment to `PAID` in near-real-time.

@@ -102,6 +102,14 @@ repo — satisfies "do not commit secrets"):
 | `ADMIN_PASSWORD` | a strong real password | Seeds the first admin account on first boot |
 | `JWT_EXPIRATION_MS` | e.g. `3600000` (1 hour) | Optional — falls back to 1 hour if unset |
 
+**SePay payment env vars (Phase 27) — not covered by this guide.** If the deployed backend needs to
+generate real VietQR payments (not just the core registration/admin flow this guide covers), five more
+`SEPAY_*` variables are required — see
+[`docs/deployment/sepay-payment-workflow.md`](sepay-payment-workflow.md) for what they are and how to get
+the values from your SePay dashboard. `SEPAY_WEBHOOK_SECRET` in particular is **required** once
+`SPRING_PROFILES_ACTIVE=prod` is set (same fail-fast pattern as `JWT_SECRET`/`ADMIN_PASSWORD` below) — the
+app won't start without it.
+
 **`ALLOWED_ORIGINS` note:** this is the Angular frontend's origin (for CORS), which doesn't exist yet until
 Phase 24 (Vercel deploy). Set it to whatever you have now (e.g. your eventual Vercel URL if you already
 know it, or leave the `application.yml` default) and **come back and update it** once the frontend is
