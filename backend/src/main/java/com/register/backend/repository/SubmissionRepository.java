@@ -34,12 +34,14 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
 
     /**
      * Finds submissions matching an optional case-insensitive search term (across fullName, email, phone),
-     * an optional status filter, and an optional course filter, all applied at the database level.
+     * an optional status filter, an optional course filter, and an optional assigned-admin filter, all
+     * applied at the database level.
      *
-     * @param search   substring to match against fullName/email/phone, or {@code null} to skip search filtering
-     * @param status   status to filter by, or {@code null} to include all statuses
-     * @param courseId course ID to filter by, or {@code null} to include submissions for any (or no) course
-     * @param pageable pagination and sorting information
+     * @param search       substring to match against fullName/email/phone, or {@code null} to skip search filtering
+     * @param status       status to filter by, or {@code null} to include all statuses
+     * @param courseId     course ID to filter by, or {@code null} to include submissions for any (or no) course
+     * @param assignedToId admin user ID to filter by, or {@code null} to include submissions assigned to anyone (or no one)
+     * @param pageable     pagination and sorting information
      * @return a page of matching submissions
      */
     @Query("""
@@ -50,9 +52,11 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
                    OR LOWER(s.phone) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
               AND (:status IS NULL OR s.status = :status)
               AND (:courseId IS NULL OR s.courseId = :courseId)
+              AND (:assignedToId IS NULL OR s.assignedToId = :assignedToId)
             """)
     Page<Submission> search(@Param("search") String search, @Param("status") SubmissionStatus status,
-                             @Param("courseId") Long courseId, Pageable pageable);
+                             @Param("courseId") Long courseId, @Param("assignedToId") Long assignedToId,
+                             Pageable pageable);
 
     /**
      * Counts submissions registered for the given course with a status in the given set, executed as a
