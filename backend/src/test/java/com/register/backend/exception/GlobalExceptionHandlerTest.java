@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -68,6 +69,18 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void dataIntegrityViolationReturns409() throws Exception {
+        mockMvc.perform(get("/test/duplicate"))
+                .andDo(print())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value("A record with the same unique field already exists"))
+                .andExpect(jsonPath("$.errors").doesNotExist())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.path").value("/test/duplicate"));
+    }
+
+    @Test
     void unexpectedErrorReturns500WithoutStackTrace() throws Exception {
         mockMvc.perform(get("/test/boom"))
                 .andDo(print())
@@ -100,6 +113,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test/boom")
         public String boom() {
             throw new IllegalStateException("some internal detail that must not leak");
+        }
+
+        @GetMapping("/test/duplicate")
+        public String duplicate() {
+            throw new DataIntegrityViolationException("duplicate key value violates unique constraint");
         }
 
     }

@@ -45,6 +45,9 @@
           >{{ submission.status }}</span>
         </div>
 
+        <div class="detail-label"><svg lucideUserCheck [size]="18"></svg>Assigned To</div>
+        <div class="detail-value">{{ assignedUsername() }}</div>
+
         <div class="detail-label"><svg lucideCalendar [size]="18"></svg>Created At</div>
         <div class="detail-value">{{ submission.createdAt | date: 'medium' }}</div>
 
@@ -75,6 +78,75 @@
           }
         </button>
       </div>
+
+      <div class="status-update">
+        <mat-form-field appearance="outline" class="status-field">
+          <mat-label>Assigned To</mat-label>
+          <mat-select [formControl]="assignControl">
+            <mat-option [value]="null">Unassigned</mat-option>
+            @for (adminUser of adminUsers; track adminUser.id) {
+              <mat-option [value]="adminUser.id">{{ adminUser.username }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <button
+          mat-raised-button
+          color="primary"
+          [disabled]="isAssignDisabled()"
+          (click)="assignSubmission()"
+        >
+          @if (assigning) {
+            <mat-spinner diameter="18"></mat-spinner>
+          } @else {
+            Assign
+          }
+        </button>
+      </div>
+    </mat-card>
+
+    <mat-card class="detail-card notes-card">
+      <h2>Internal Notes</h2>
+
+      <div class="note-form">
+        <mat-form-field appearance="outline" class="note-field">
+          <mat-label>Add a note</mat-label>
+          <textarea matInput rows="3" [formControl]="noteControl"></textarea>
+        </mat-form-field>
+
+        <button
+          mat-raised-button
+          color="primary"
+          [disabled]="isAddNoteDisabled()"
+          (click)="addNote()"
+        >
+          @if (addingNote) {
+            <mat-spinner diameter="18"></mat-spinner>
+          } @else {
+            Add Note
+          }
+        </button>
+      </div>
+
+      @if (notesLoading) {
+        <div class="state-loading">
+          <mat-spinner diameter="24"></mat-spinner>
+        </div>
+      } @else if (notes.length === 0) {
+        <p class="empty-notes">No notes yet.</p>
+      } @else {
+        <ul class="notes-list">
+          @for (note of notes; track note.id) {
+            <li class="note-item">
+              <div class="note-meta">
+                <span class="note-author">{{ note.authorUsername }}</span>
+                <span class="note-date">{{ note.createdAt | date: 'medium' }}</span>
+              </div>
+              <p class="note-content">{{ note.content }}</p>
+            </li>
+          }
+        </ul>
+      }
     </mat-card>
   }
 </div>

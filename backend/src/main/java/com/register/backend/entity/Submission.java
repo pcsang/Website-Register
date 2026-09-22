@@ -45,6 +45,9 @@ public class Submission {
     @Column(name = "course_id")
     private Long courseId;
 
+    @Column(name = "assigned_to_id")
+    private Long assignedToId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -117,6 +120,14 @@ public class Submission {
 
     public void setCourseId(Long courseId) {
         this.courseId = courseId;
+    }
+
+    public Long getAssignedToId() {
+        return assignedToId;
+    }
+
+    public void setAssignedToId(Long assignedToId) {
+        this.assignedToId = assignedToId;
     }
 
     public LocalDateTime getCreatedAt() {

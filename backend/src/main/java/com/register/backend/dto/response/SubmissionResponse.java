@@ -12,6 +12,7 @@ public record SubmissionResponse(
         String message,
         SubmissionStatus status,
         Long courseId,
+        Long assignedToId,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

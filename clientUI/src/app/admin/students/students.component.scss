@@ -18,7 +18,8 @@
 }
 
 .status-field,
-.course-field {
+.course-field,
+.assigned-to-field {
   flex: 1 1 220px;
   max-width: 280px;
 }
@@ -63,7 +64,8 @@
   }
 
   .status-field,
-  .course-field {
+  .course-field,
+  .assigned-to-field {
     flex: 1 1 auto;
     max-width: none;
   }

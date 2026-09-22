@@ -1485,6 +1485,215 @@ not yet confirmed** — see that plan's "Decisions Needed" section before starti
 
 ---
 
+## Admin User Management (proposed — not part of the original numbered roadmap)
+
+- [x] **Phase A — Admin/consultant account creation and listing** — full plan at
+  `C:\Users\Admin\.claude\plans\streamed-gathering-rainbow.md`; this is the first phase of that plan (a
+  prerequisite for a later "assign submission to a consultant" feature, which is explicitly out of scope
+  here).
+  - Log (2026-09-19): New `dto/response/AdminUserSummaryResponse` (`id, username` only — never
+    `passwordHash`/`role`). New `dto/request/CreateAdminUserRequest` (`username` `@NotBlank @Size(max=100)`,
+    `password` `@NotBlank @Size(min=8, max=100)`, mirroring `admin_users.username`'s `length=100` column and
+    a reasonable minimum password length — there's no existing DB constraint on password length since only
+    the hash is stored, so `min=8` is a pure application-level policy choice, not a DB-mirroring one). New
+    `service/AdminUserService` (`listAdminUsers()` — `@Transactional(readOnly = true)`, no pagination,
+    small admin-only list; `createAdminUser(request)` — `@Transactional`, hashes the password via the
+    existing `PasswordEncoder` bean, forces `role = "ROLE_ADMIN"` server-side using the exact same literal
+    `AdminUserSeeder.ADMIN_ROLE` uses, saves via `AdminUserRepository.save`). New
+    `controller/AdminUserController` (`GET/POST /api/admin/users`, `POST` returns 201 via
+    `ResponseEntity.status(HttpStatus.CREATED)`, matching `SubmissionController`/`AdminCourseController`'s
+    existing pattern) — no `SecurityConfig` change needed, `/api/admin/**` already requires
+    `hasRole("ADMIN")`. Added a `DataIntegrityViolationException` → 409 case to `GlobalExceptionHandler`
+    (there was no existing handler for it) since `admin_users.username` has a DB unique constraint and a
+    duplicate-username create would otherwise fall through to the generic 500 handler. No new Flyway
+    migration — `admin_users` already existed from `V1`. New `AdminUserServiceTest` (Mockito, no Spring
+    context — `listAdminUsers()` mapping, `createAdminUser()` hashing/role-forcing/saving verified via an
+    `ArgumentCaptor` on the entity passed to `save()`), new `AdminUserControllerTest` (`@WebMvcTest` +
+    `@AutoConfigureMockMvc(addFilters = false)`, same style as `AdminCourseControllerTest` — list success,
+    create success/201, blank username/400, too-short password/400), and a new
+    `dataIntegrityViolationReturns409` case added to the existing `GlobalExceptionHandlerTest`. Full suite
+    (100 tests across all classes, including the 11 new ones) passes via
+    `SPRING_PROFILES_ACTIVE=test .\gradlew clean build` (H2, per the existing hermetic-test setup) — this
+    session's JDK 21 was `C:\Users\Admin\.jdks\openjdk-21.0.2` (an existing IntelliJ-managed install found
+    on this machine), not the `tools/` portable JDK documented in the root `CLAUDE.md`, because no `tools/`
+    directory exists in this checkout; likewise no portable PostgreSQL exists here, so **manual end-to-end
+    verification used Docker Desktop** (started fresh for this session) running a disposable
+    `postgres:16` container on host port 5433 (the pre-existing `docker-compose.yml`'s `postgres` service
+    doesn't publish port 5432 on the host, and this machine already has an unrelated PostgreSQL service
+    bound to host port 5432, so a different host port was used to avoid touching it) — `bootRun` against it
+    (with `-Duser.timezone=UTC`, since this machine's default JVM timezone ID, `Asia/Saigon`, isn't accepted
+    by this PostgreSQL server's `TimeZone` parameter), logging in as the seeded admin
+    (`admin`/`dev-only-ChangeMe123!`, `application.yml`'s defaults), then: `GET /api/admin/users` → `200`
+    `[{"id":1,"username":"admin"}]`; `POST /api/admin/users` with `{"username":"consultant1","password":
+    "consultantPass123"}` → `201` `{"id":2,"username":"consultant1"}`; `GET /api/admin/users` again → both
+    accounts listed; re-POSTing the same username → `409`
+    `{"status":409,"message":"A record with the same unique field already exists",...}`; blank
+    username → `400` with `errors.username`; a 5-character password → `400` with `errors.password`; and
+    `GET /api/admin/users` with no `Authorization` header → `401`. Queried `admin_users` directly via
+    `psql` and confirmed `consultant1`'s `password_hash` is a BCrypt hash (`$2a$10$...`), not plaintext,
+    and `role = 'ROLE_ADMIN'`. The app process and the disposable Postgres container were both stopped
+    afterward; nothing was left running or persisted beyond this session.
+
+- [x] **Phase B — Assign a submission to an admin/consultant** and **Phase C — Internal notes on a
+  submission** — full plan at `docs/planning/plan-3-assign-submission-notes.md`; implemented together in
+  one pass per that plan's explicit allowance to combine them (same feature pass, same migration).
+  - Log (2026-09-19): New Flyway migration `V6__add_submission_assignment_and_notes.sql` — adds
+    `submissions.assigned_to_id BIGINT NULL REFERENCES admin_users (id)` (no `ON DELETE` action, no
+    delete-admin-user flow exists yet) and a new `submission_notes` table (`id, submission_id NOT NULL
+    REFERENCES submissions ON DELETE CASCADE, author_id NOT NULL REFERENCES admin_users, content TEXT NOT
+    NULL, created_at NOT NULL`, no `updated_at` — append-only). `entity/Submission` gained a plain
+    `assignedToId` (`Long`) column, matching the existing `courseId` field's flat-FK-by-ID style (not a
+    `@ManyToOne`). New `entity/SubmissionNote` (plain JPA, no Lombok, `@PrePersist`-only, no `@PreUpdate` —
+    notes are never edited) + `repository/SubmissionNoteRepository`
+    (`findBySubmissionIdOrderByCreatedAtDesc`). New `dto/request/AssignSubmissionRequest` (`Long
+    adminUserId`, deliberately no `@NotNull` — `null` means un-assign), `dto/request/
+    CreateSubmissionNoteRequest` (`content` `@NotBlank`), `dto/response/SubmissionNoteResponse` (`id,
+    submissionId, authorId, authorUsername, content, createdAt` — includes the denormalized
+    `authorUsername`, not just `authorId`, since notes display "who wrote this" directly). `dto/response/
+    SubmissionResponse` gained `Long assignedToId` (ID-only, same pattern as `courseId` — no joined
+    username; the frontend is expected to resolve it against the Phase A admin-user list) and
+    `SubmissionMapper`/`SubmissionRepository.search()`/`SubmissionService.listSubmissions()`/
+    `AdminSubmissionController.listSubmissions()` all threaded the new `assignedToId` filter through using
+    the exact same `(:param IS NULL OR ...)` JPQL guard style already used for `status`/`courseId`.
+    `SubmissionService` gained `assignSubmission(id, adminUserId)` (mirrors `updateStatus()` — `findById`/
+    `orElseThrow(ResourceNotFoundException)`, then if `adminUserId != null` validates it via
+    `adminUserRepository.findById().orElseThrow(...)` with a new `"Admin user not found with id: " + id`
+    message, sets the field, `saveAndFlush`, maps to response — no access-control implication, assignment
+    is organizational/label-only per the plan's explicit design decision), `listNotes(submissionId)` (404s
+    via `existsById` if the submission doesn't exist, then bulk-resolves every note's author username in
+    one `adminUserRepository.findAllById(...)` call rather than one lookup per note, to avoid N+1 queries
+    when listing), and `addNote(submissionId, content, authentication)` (resolves the author via
+    `adminUserRepository.findByUsername(authentication.getName())` — confirmed `JwtAuthenticationFilter`
+    sets the JWT's `sub` claim, the username, as the principal's `getName()`). New endpoints on the
+    existing `AdminSubmissionController`: `PATCH /{id}/assign`, `GET /{id}/notes`, `POST /{id}/notes`
+    (`Authentication` injected as a plain controller method parameter — no `SecurityConfig` change needed,
+    already covered by the existing `/api/admin/**` → `hasRole("ADMIN")` rule). Notes are intentionally
+    kept inside `SubmissionService` rather than split into a separate `SubmissionNoteService`, per the
+    plan's explicit reasoning (no other consumer, would be over-engineering at this scale).
+  - **Tests:** `SubmissionServiceTest` gained `assignSubmission` (success setting `assignedToId`,
+    unassign-via-null skips the admin-user lookup entirely, submission-not-found → 404, admin-user-not-found
+    → 404), `listNotes` (newest-first ordering with resolved `authorUsername`, submission-not-found → 404),
+    and `addNote` (saves with the authenticated user as author and returns the mapped response,
+    submission-not-found → 404) test methods; every pre-existing `new SubmissionResponse(...)` construction
+    across `SubmissionServiceTest`/`SubmissionControllerTest`/`AdminSubmissionControllerTest` was updated for
+    the new `assignedToId` record component (compile-breaking otherwise, since it's a positional `record`).
+    `AdminSubmissionControllerTest` gained matching `@WebMvcTest` cases for `/assign` (success, unassign,
+    404-passthrough) and `/notes` (list, list-404, add-201, add-400-on-blank-content) — the `addNote` test
+    passes an explicit `.principal(new UsernamePasswordAuthenticationToken("consultant1", null))` on the
+    `MockMvc` request rather than relying on default argument resolution, since this slice has no real
+    authenticated `SecurityContext` (`addFilters = false`). Full suite (117 tests, up from 100) passes via
+    `./gradlew clean build` — JDK 21 from `C:\Users\Admin\.jdks\openjdk-21.0.2` (same as Phase A, no
+    `tools/` portable JDK in this checkout). No local/portable PostgreSQL was reachable either (this
+    machine's real `postgresql-x64-17` Windows service uses a password this session doesn't have), so both
+    the automated suite and manual verification ran against a disposable `postgres:16` Docker container on
+    host port 5433 (same approach as Phase A, to avoid touching the pre-existing service on 5432) — the
+    integration/security `@SpringBootTest` classes (which hit the real datasource, unlike the H2-backed
+    `test` profile used by the rest of the suite) needed `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` pointed at it
+    plus `-Duser.timezone=UTC` (via `JAVA_TOOL_OPTIONS`, after discovering a stale Gradle daemon doesn't
+    pick up freshly-exported env vars — `./gradlew --stop` first fixed that), matching the exact "invalid
+    value for parameter TimeZone" gotcha already logged for Phase A/`Asia/Saigon`.
+  - **Manual end-to-end verification** (packaged jar run against the same disposable Postgres): logged in
+    as the seeded `admin`; `GET /api/admin/users` → `200` `[{"id":1,"username":"admin"}]`; created a second
+    account `POST /api/admin/users` `{"username":"consultant1","password":"consultantPass123"}` → `201`
+    `{"id":2,"username":"consultant1"}`; `POST /api/submissions` (public) created submission `id:1` with
+    `"assignedToId":null` already present in the create response; `PATCH /api/admin/submissions/1/assign`
+    `{"adminUserId":2}` → `200` with `"assignedToId":2` and a bumped `updatedAt`; the same call with
+    `{"adminUserId":999}` → `404` `{"message":"Admin user not found with id: 999"}`; `GET
+    /api/admin/submissions?assignedToId=2` → `200` with the one matching submission,
+    `?assignedToId=999` → `200` empty page; `GET /api/admin/submissions/1/notes` before any notes → `200`
+    `[]`; `POST /api/admin/submissions/1/notes` as `admin` → `201`
+    `{"id":1,...,"authorId":1,"authorUsername":"admin",...}`; logged in as `consultant1` and posted a second
+    note → `201` with `"authorUsername":"consultant1"`; `GET .../notes` as `admin` → both notes, newest
+    (`consultant1`'s) first; `PATCH .../assign` `{"adminUserId":null}` → `200` with `"assignedToId":null`
+    (unassign); `POST .../notes` with `{"content":""}` → `400` `{"errors":{"content":"must not be blank"}}`;
+    `GET`/`PATCH` against submission `999999` → `404` on both. Queried `\d submissions`/`\d submission_notes`
+    directly via `psql` inside the container and confirmed the live schema matches the migration exactly,
+    including the `ON DELETE CASCADE` on `submission_notes.submission_id` and the plain (no cascade)
+    `assigned_to_id`/`author_id` foreign keys. The app process and the disposable Postgres container were
+    both stopped/removed afterward; nothing was left running or persisted beyond this session.
+  - **Deviation (2026-09-19):** the plan left "V6 only, or split into V6+V7" as an open decision to make at
+    code time — went with a single combined `V6__add_submission_assignment_and_notes.sql` (both the
+    `assigned_to_id` column and the new `submission_notes` table), exactly as the plan's "explicitly allows
+    combining them" note anticipated, since Phase B and Phase C were implemented in the same pass. No other
+    deviation from the plan's Phase B/Phase C specs.
+
+- [x] **Phase D — Frontend: Submission Detail page (assign + notes)** and **Phase E — Frontend: Students
+  table (assigned-to column/filter)** — full plan at `docs/planning/plan-3-assign-submission-notes.md`.
+  - Log (2026-09-19): New `models/admin-user.model.ts` (`AdminUserSummary { id, username }`), new
+    `models/submission-note.model.ts` (`SubmissionNote`, `CreateSubmissionNoteRequest`); `models/
+    submission.model.ts` gained `assignedToId: number | null` on `Submission` and a new
+    `AssignSubmissionRequest { adminUserId: number | null }`. New `core/services/admin-user.service.ts`
+    (mirrors `CourseService`'s exact shape — `providedIn: 'root'`, `inject()`, `environment.apiBaseUrl` —
+    one method `listAdminUsers()`). `core/services/submission.service.ts` gained `assignSubmission(id,
+    adminUserId)` (`PATCH .../assign`), `listNotes(id)` (`GET .../notes`), `addNote(id, content)` (`POST
+    .../notes`), and `listSubmissions(...)` gained an optional trailing `assignedToId` param, appended to
+    `HttpParams` only when provided (same omit-when-absent pattern as `search`/`status`/`courseId`).
+    `submission-detail.component.ts` now injects `AdminUserService` and loads `listAdminUsers()` +
+    `listNotes()` in `ngOnInit` independently of the submission fetch (same "one failure doesn't block the
+    others" pattern already used by `OverviewComponent`); added `assignControl`/`assigning`/
+    `isAssignDisabled()`/`assignSubmission()` mirroring `statusControl`/`updating`/`isUpdateDisabled()`/
+    `updateStatus()` 1:1, plus an `assignedUsername()` helper resolving `assignedToId` against the loaded
+    admin user list for the detail-grid display (a small helper method rather than an inline template
+    loop, since this template had no prior precedent for resolving a foreign ID to a display name); added
+    `notes`/`notesLoading`/`noteControl`/`addingNote`/`addNote()`/`isAddNoteDisabled()`, prepending the
+    newly created note to the in-memory list on success (backend already returns notes newest-first, so a
+    local prepend keeps that order without a full reload). Template gained an "Assigned To" row in the
+    existing `detail-grid`, a second `status-update`-styled block with a `mat-select` (options: the loaded
+    admin users + an explicit "Unassigned" → `null` option) + "Assign" button, and a new "Internal Notes"
+    `mat-card` below the existing detail card (textarea + "Add Note" button, then the notes list — each
+    showing `authorUsername`, `createdAt | date:'medium'`, `content`, newest first). Confirmed via the
+    existing template content that this app's admin UI is in English (not Vietnamese, despite the plan
+    doc's Vietnamese section headings) — used "Assigned To"/"Internal Notes"/"No notes yet." to match the
+    file's existing "Full Name"/"Email"/etc. labels and empty-state style (e.g. `'—'` for null values, "No
+    submissions found." on the Students page), not the plan's suggested Vietnamese copy. `students.
+    component.ts` now injects `AdminUserService`, loads `listAdminUsers()` once in `ngOnInit` (not
+    per-page) and builds an `adminUsernameById: Map<number, string>` lookup for the table cell (same
+    "load once, look up client-side" mechanism `courseControl`'s dropdown already uses for course names);
+    added `assignedToControl` (`FormControl<AssignedToFilter>`, `'ALL' | number`) wired identically to
+    `statusControl`/`courseControl` (`valueChanges` → `pageIndex = 0` → `loadSubmissions()`), with an
+    `'ALL'` default matching `statusControl`'s existing convention; `displayedColumns` gained `'assignedTo'`
+    between `'status'` and `'createdAt'`. Template gained a third filter `mat-select` (`'All'` + one option
+    per admin user) using the same markup as the two existing filters, and an `assignedTo` column cell
+    rendering the looked-up username or `'—'` (matching the existing null-email/null-phone `'—'` display
+    convention in this same table). Added a small amount of matching SCSS to both components' `.scss`
+    files for the new template pieces (`.notes-card`/`.note-form`/`.notes-list`/etc. in submission-detail;
+    `.assigned-to-field` folded into the existing `.status-field, .course-field` selector list in students)
+    — no new visual system introduced, purely extending the existing rules to cover the new elements.
+  - **Verification:** `ng build --configuration production` — 0 errors (only the two pre-existing bundle-
+    budget warnings, unrelated to this change, unchanged from before). `ng test --watch=false
+    --browsers=ChromeHeadless` — all 15 existing specs pass unchanged; no `TestBed` provider changes were
+    needed in `students.component.spec.ts`/`submission-detail.component.spec.ts` since both already use
+    `HttpClientTestingModule` (which satisfies the newly-injected `AdminUserService`'s `HttpClient`
+    dependency automatically, same as it already did for `SubmissionService`/`CourseService`) and neither
+    spec asserts on outstanding HTTP requests, so the new pending `GET /api/admin/users` call doesn't need
+    an explicit flush. End-to-end verification against a real backend: built the backend jar (JDK 21 from
+    `C:\Users\Admin\.jdks\openjdk-21.0.2`, no `tools/` portable JDK in this checkout) and ran it (with
+    `-Duser.timezone=UTC`) against a disposable `postgres:16` Docker container on host port 5433 (same
+    approach as the Phase A/B/C log entries, to avoid the host's own PostgreSQL service on 5432), then
+    exercised the exact new endpoints the frontend calls via curl with a real JWT: logged in as `admin`,
+    `GET /api/admin/users` → `[{"id":1,"username":"admin"}]`, created `consultant1` → `{"id":2,
+    "username":"consultant1"}`, `POST /api/submissions` created submission `id:1` with `"assignedToId":
+    null` already present, `PATCH /api/admin/submissions/1/assign {"adminUserId":2}` → `200` with
+    `"assignedToId":2`, `GET /api/admin/submissions?assignedToId=2` → the one matching submission, `POST
+    /api/admin/submissions/1/notes {"content":"..."}` → `201` with `"authorUsername":"admin"`, `GET
+    .../notes` → the created note — confirming the exact response shapes the new Angular models/services
+    assume. Then ran `ng serve` against this live backend (`environment.development.ts` already points at
+    `http://localhost:8080`, matching the backend's default CORS `allowed-origins`) and confirmed the
+    compiled dev bundle (`main.js`) contains the expected new endpoint paths and parameter names
+    (`/assign`, `/notes`, `assignedToId`, `/api/admin/users`) and that both `/admin/students` and
+    `/admin/submissions/1` serve `200` through the SPA router. This session's sandboxed environment has no
+    browser-automation tool available, so a literal click-through (typing into the note textarea, watching
+    the dropdown update, checking the browser Network tab) could not be performed directly; verification
+    instead combined a full build+unit-test pass with an end-to-end curl exercise of every new endpoint
+    using the exact request/response shapes the new frontend code sends and expects, plus confirming those
+    exact strings are present in the compiled bundle actually served by `ng serve`. The backend process,
+    `ng serve` process, and the disposable Postgres container were all stopped/removed afterward; nothing
+    was left running or persisted beyond this session.
+  - No deviation from the plan's Phase D/Phase E specs beyond the English-vs-Vietnamese label choice noted
+    above (an explicit instruction to match the existing file's actual language, not a design change).
+
+---
+
 ## Milestones
 
 - [x] **Milestone 1 — Backend MVP core path** (`POST /api/submissions` → Spring Boot → PostgreSQL) —
