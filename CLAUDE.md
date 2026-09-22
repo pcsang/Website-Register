@@ -17,6 +17,8 @@ The original phased roadmap lives in
 root — useful for historical rationale on early decisions, but it predates the DriveUp rebrand and Phases
 24–27, so treat it as background, not as "what comes next." **For the actual current state of the code**,
 prefer these living docs over the roadmap doc or this file's own memory of past sessions:
+- [`docs/architecture-diagram.md`](docs/architecture-diagram.md) — one system diagram (frontend → backend
+  → database, plus the SePay/VietQR payment flow) for the whole stack at a glance.
 - [`docs/backend-specification.md`](docs/backend-specification.md) — current backend implementation
   (entities, endpoints, config), re-derived from source, not from the roadmap.
 - [`docs/ui-specification.md`](docs/ui-specification.md) — current Angular implementation.

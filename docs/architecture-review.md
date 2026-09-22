@@ -9,7 +9,9 @@ recommended anywhere below.
 
 Recommendations are classified **Critical / Should Improve / Nice to Have**. This review does not
 re-litigate Phase 25's security findings in detail — `docs/security-review.md` already covers areas 9, 10,
-16, 17, 18 in depth and is linked from those sections here rather than duplicated.
+16, 17, 18 in depth and is linked from those sections here rather than duplicated. For a single at-a-glance
+system diagram (not a review, just the shape of the stack), see
+[`docs/architecture-diagram.md`](architecture-diagram.md).
 
 ---
 

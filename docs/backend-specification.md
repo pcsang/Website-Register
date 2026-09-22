@@ -14,7 +14,8 @@ For the full original phased roadmap, see
 DriveUp UI/UX redesign that Plan 2 implements, see
 [`docs/planning/plan-2-full-redesign-driveup.md`](planning/plan-2-full-redesign-driveup.md). For the SePay
 payment integration's operational/runbook details, see
-[`docs/deployment/sepay-payment-workflow.md`](deployment/sepay-payment-workflow.md). For day-to-day working
+[`docs/deployment/sepay-payment-workflow.md`](deployment/sepay-payment-workflow.md). For a single
+at-a-glance system diagram, see [`docs/architecture-diagram.md`](architecture-diagram.md). For day-to-day working
 rules and local environment setup, see [`CLAUDE.md`](../CLAUDE.md) and [`CHECKLIST.md`](../CHECKLIST.md).
 
 ---
