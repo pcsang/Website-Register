@@ -17,14 +17,19 @@ import { LucideEye } from '@lucide/angular';
 
 import { SubmissionService } from '../../core/services/submission.service';
 import { CourseService } from '../../core/services/course.service';
+import { AdminUserService } from '../../core/services/admin-user.service';
 import { Submission, SubmissionStatus } from '../../models/submission.model';
 import { Course } from '../../models/course.model';
+import { AdminUserSummary } from '../../models/admin-user.model';
 
 /** Status filter options for the dropdown, including the "no filter" ALL option. */
 type StatusFilter = 'ALL' | SubmissionStatus;
 
 /** Course filter options for the dropdown; `'ALL'` omits the `courseId` param entirely. */
 type CourseFilter = 'ALL' | number;
+
+/** Assigned-to filter options for the dropdown; `'ALL'` omits the `assignedToId` param entirely. */
+type AssignedToFilter = 'ALL' | number;
 
 /** Default page size requested from the backend, matching its own default. */
 const DEFAULT_PAGE_SIZE = 20;
@@ -59,17 +64,32 @@ const SEARCH_DEBOUNCE_MS = 300;
 export class StudentsComponent implements OnInit, OnDestroy {
   private readonly submissionService = inject(SubmissionService);
   private readonly courseService = inject(CourseService);
+  private readonly adminUserService = inject(AdminUserService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
 
   /** Columns rendered by the submissions MatTable, in display order. */
-  readonly displayedColumns: string[] = ['fullName', 'email', 'phone', 'status', 'createdAt', 'action'];
+  readonly displayedColumns: string[] = [
+    'fullName',
+    'email',
+    'phone',
+    'status',
+    'assignedTo',
+    'createdAt',
+    'action'
+  ];
 
   /** Status filter options rendered in the dropdown. */
   readonly statusOptions: StatusFilter[] = ['ALL', 'PENDING_CONSULTATION', 'CONFIRMED', 'IN_PROGRESS', 'GRADUATED'];
 
   /** Courses available for the course filter dropdown, loaded once on init. */
   courses: Course[] = [];
+
+  /** Admin/consultant accounts available for the "assigned to" filter dropdown, loaded once on init. */
+  adminUsers: AdminUserSummary[] = [];
+
+  /** Lookup of admin user ID to username, derived from `adminUsers`, used to render the table cell. */
+  adminUsernameById = new Map<number, string>();
 
   /** Current page of submissions to render in the table. */
   submissions: Submission[] = [];
@@ -95,6 +115,9 @@ export class StudentsComponent implements OnInit, OnDestroy {
   /** Reactive control for the course filter dropdown. */
   readonly courseControl = new FormControl<CourseFilter>('ALL', { nonNullable: true });
 
+  /** Reactive control for the "assigned to" filter dropdown. */
+  readonly assignedToControl = new FormControl<AssignedToFilter>('ALL', { nonNullable: true });
+
   /** Emits whenever the debounced search term should be applied to the list request. */
   private readonly searchTerm$ = new Subject<string>();
 
@@ -102,8 +125,8 @@ export class StudentsComponent implements OnInit, OnDestroy {
   private readonly subscriptions = new Subscription();
 
   /**
-   * Wires up the debounced search stream, loads the course filter options, and loads the
-   * initial submissions page.
+   * Wires up the debounced search stream, loads the course/admin-user filter options, and loads
+   * the initial submissions page.
    *
    * @returns void
    */
@@ -135,7 +158,15 @@ export class StudentsComponent implements OnInit, OnDestroy {
       })
     );
 
+    this.subscriptions.add(
+      this.assignedToControl.valueChanges.subscribe(() => {
+        this.pageIndex = 0;
+        this.loadSubmissions();
+      })
+    );
+
     this.loadCourses();
+    this.loadAdminUsers();
     this.loadSubmissions();
   }
 
@@ -167,8 +198,27 @@ export class StudentsComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Loads the admin/consultant account list used to populate the "assigned to" filter dropdown
+   * and to resolve each submission row's assigned username, and builds the ID-to-username lookup.
+   *
+   * @returns void
+   */
+  loadAdminUsers(): void {
+    this.adminUserService.listAdminUsers().subscribe({
+      next: (adminUsers) => {
+        this.adminUsers = adminUsers;
+        this.adminUsernameById = new Map(adminUsers.map((adminUser) => [adminUser.id, adminUser.username]));
+      },
+      error: () => {
+        // Non-fatal: the assigned-to filter/column simply stays empty if this fails.
+      }
+    });
+  }
+
+  /**
    * Loads the current page of submissions from the backend, applying the current search term,
-   * status filter, and course filter, and shows an error notification on failure.
+   * status filter, course filter, and assigned-to filter, and shows an error notification on
+   * failure.
    *
    * @returns void
    */
@@ -177,6 +227,7 @@ export class StudentsComponent implements OnInit, OnDestroy {
     const search = this.searchControl.value.trim();
     const status = this.statusControl.value;
     const courseId = this.courseControl.value;
+    const assignedToId = this.assignedToControl.value;
 
     this.submissionService
       .listSubmissions(
@@ -184,7 +235,8 @@ export class StudentsComponent implements OnInit, OnDestroy {
         this.pageSize,
         search !== '' ? search : undefined,
         status !== 'ALL' ? status : undefined,
-        courseId !== 'ALL' ? courseId : undefined
+        courseId !== 'ALL' ? courseId : undefined,
+        assignedToId !== 'ALL' ? assignedToId : undefined
       )
       .subscribe({
         next: (page) => {

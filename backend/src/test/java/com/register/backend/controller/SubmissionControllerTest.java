@@ -45,7 +45,7 @@ class SubmissionControllerTest {
                 "Jane Doe", "jane@example.com", "0123456789", "Hello", null);
         SubmissionResponse response = new SubmissionResponse(
                 1L, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.PENDING_CONSULTATION, null, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.PENDING_CONSULTATION, null, null, LocalDateTime.now(), LocalDateTime.now());
 
         when(submissionService.createSubmission(request)).thenReturn(response);
 

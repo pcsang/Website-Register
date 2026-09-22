@@ -19,6 +19,7 @@ export interface Submission {
   message: string | null;
   status: SubmissionStatus;
   courseId: number | null;
+  assignedToId: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,4 +45,12 @@ export interface CreateSubmissionRequest {
  */
 export interface UpdateSubmissionStatusRequest {
   status: SubmissionStatus;
+}
+
+/**
+ * Request body for assigning (or un-assigning, via `null`) a submission to an admin/consultant
+ * account, mirroring `com.register.backend.dto.request.AssignSubmissionRequest`.
+ */
+export interface AssignSubmissionRequest {
+  adminUserId: number | null;
 }

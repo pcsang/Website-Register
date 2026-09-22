@@ -27,6 +27,7 @@ public class SubmissionMapper {
                 submission.getMessage(),
                 submission.getStatus(),
                 submission.getCourseId(),
+                submission.getAssignedToId(),
                 submission.getCreatedAt(),
                 submission.getUpdatedAt()
         );
