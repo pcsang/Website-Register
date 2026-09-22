@@ -21,6 +21,16 @@
           }
         </mat-select>
       </mat-form-field>
+
+      <mat-form-field appearance="outline" class="assigned-to-field">
+        <mat-label>Assigned To</mat-label>
+        <mat-select [formControl]="assignedToControl">
+          <mat-option [value]="'ALL'">All</mat-option>
+          @for (adminUser of adminUsers; track adminUser.id) {
+            <mat-option [value]="adminUser.id">{{ adminUser.username }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
     </div>
 
     <div class="table-container">
@@ -47,6 +57,13 @@
               class="status-badge"
               [ngClass]="'status-' + submission.status.toLowerCase().replace('_', '-')"
             >{{ submission.status }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="assignedTo">
+          <th mat-header-cell *matHeaderCellDef>Assigned To</th>
+          <td mat-cell *matCellDef="let submission">
+            {{ submission.assignedToId !== null ? (adminUsernameById.get(submission.assignedToId) || '—') : '—' }}
           </td>
         </ng-container>
 

@@ -2,11 +2,16 @@ package com.register.backend.service;
 
 import com.register.backend.dto.request.CreateSubmissionRequest;
 import com.register.backend.dto.response.PageResponse;
+import com.register.backend.dto.response.SubmissionNoteResponse;
 import com.register.backend.dto.response.SubmissionResponse;
+import com.register.backend.entity.AdminUser;
 import com.register.backend.entity.Submission;
+import com.register.backend.entity.SubmissionNote;
 import com.register.backend.enums.SubmissionStatus;
 import com.register.backend.exception.ResourceNotFoundException;
 import com.register.backend.mapper.SubmissionMapper;
+import com.register.backend.repository.AdminUserRepository;
+import com.register.backend.repository.SubmissionNoteRepository;
 import com.register.backend.repository.SubmissionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +34,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -40,6 +48,12 @@ class SubmissionServiceTest {
 
     @Mock
     private SubmissionMapper submissionMapper;
+
+    @Mock
+    private AdminUserRepository adminUserRepository;
+
+    @Mock
+    private SubmissionNoteRepository submissionNoteRepository;
 
     @InjectMocks
     private SubmissionService submissionService;
@@ -65,7 +79,7 @@ class SubmissionServiceTest {
 
         SubmissionResponse expectedResponse = new SubmissionResponse(
                 1L, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.PENDING_CONSULTATION, null, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.PENDING_CONSULTATION, null, null, LocalDateTime.now(), LocalDateTime.now());
 
         when(submissionMapper.toEntity(request)).thenReturn(mappedEntity);
         when(submissionRepository.save(mappedEntity)).thenReturn(savedSubmission);
@@ -115,19 +129,19 @@ class SubmissionServiceTest {
 
         SubmissionResponse mappedResponse = new SubmissionResponse(
                 1L, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.PENDING_CONSULTATION, null, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.PENDING_CONSULTATION, null, null, LocalDateTime.now(), LocalDateTime.now());
 
-        when(submissionRepository.search(search, status, null, pageable)).thenReturn(page);
+        when(submissionRepository.search(search, status, null, null, pageable)).thenReturn(page);
         when(submissionMapper.toResponse(submission)).thenReturn(mappedResponse);
 
-        PageResponse<SubmissionResponse> actual = submissionService.listSubmissions(search, status, null, pageable);
+        PageResponse<SubmissionResponse> actual = submissionService.listSubmissions(search, status, null, null, pageable);
 
         assertThat(actual.content()).containsExactly(mappedResponse);
         assertThat(actual.page()).isEqualTo(0);
         assertThat(actual.size()).isEqualTo(10);
         assertThat(actual.totalElements()).isEqualTo(1L);
         assertThat(actual.totalPages()).isEqualTo(1);
-        verify(submissionRepository).search(search, status, null, pageable);
+        verify(submissionRepository).search(search, status, null, null, pageable);
         verify(submissionMapper).toResponse(submission);
     }
 
@@ -136,11 +150,11 @@ class SubmissionServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         Page<Submission> emptyPage = new PageImpl<>(List.of(), pageable, 0);
 
-        when(submissionRepository.search(isNull(), eq(SubmissionStatus.PENDING_CONSULTATION), isNull(), eq(pageable))).thenReturn(emptyPage);
+        when(submissionRepository.search(isNull(), eq(SubmissionStatus.PENDING_CONSULTATION), isNull(), isNull(), eq(pageable))).thenReturn(emptyPage);
 
-        submissionService.listSubmissions("   ", SubmissionStatus.PENDING_CONSULTATION, null, pageable);
+        submissionService.listSubmissions("   ", SubmissionStatus.PENDING_CONSULTATION, null, null, pageable);
 
-        verify(submissionRepository).search(isNull(), eq(SubmissionStatus.PENDING_CONSULTATION), isNull(), eq(pageable));
+        verify(submissionRepository).search(isNull(), eq(SubmissionStatus.PENDING_CONSULTATION), isNull(), isNull(), eq(pageable));
     }
 
     @Test
@@ -149,11 +163,24 @@ class SubmissionServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         Page<Submission> emptyPage = new PageImpl<>(List.of(), pageable, 0);
 
-        when(submissionRepository.search(isNull(), isNull(), eq(courseId), eq(pageable))).thenReturn(emptyPage);
+        when(submissionRepository.search(isNull(), isNull(), eq(courseId), isNull(), eq(pageable))).thenReturn(emptyPage);
 
-        submissionService.listSubmissions(null, null, courseId, pageable);
+        submissionService.listSubmissions(null, null, courseId, null, pageable);
 
-        verify(submissionRepository).search(isNull(), isNull(), eq(courseId), eq(pageable));
+        verify(submissionRepository).search(isNull(), isNull(), eq(courseId), isNull(), eq(pageable));
+    }
+
+    @Test
+    void listSubmissionsPassesAssignedToIdFilterToRepository() {
+        Long assignedToId = 3L;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Submission> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+
+        when(submissionRepository.search(isNull(), isNull(), isNull(), eq(assignedToId), eq(pageable))).thenReturn(emptyPage);
+
+        submissionService.listSubmissions(null, null, null, assignedToId, pageable);
+
+        verify(submissionRepository).search(isNull(), isNull(), isNull(), eq(assignedToId), eq(pageable));
     }
 
     @Test
@@ -169,7 +196,7 @@ class SubmissionServiceTest {
 
         SubmissionResponse expectedResponse = new SubmissionResponse(
                 id, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.PENDING_CONSULTATION, null, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.PENDING_CONSULTATION, null, null, LocalDateTime.now(), LocalDateTime.now());
 
         when(submissionRepository.findById(id)).thenReturn(Optional.of(submission));
         when(submissionMapper.toResponse(submission)).thenReturn(expectedResponse);
@@ -207,7 +234,7 @@ class SubmissionServiceTest {
 
         SubmissionResponse expectedResponse = new SubmissionResponse(
                 id, "Jane Doe", "jane@example.com", "0123456789", "Hello",
-                SubmissionStatus.IN_PROGRESS, null, LocalDateTime.now(), LocalDateTime.now());
+                SubmissionStatus.IN_PROGRESS, null, null, LocalDateTime.now(), LocalDateTime.now());
 
         when(submissionRepository.findById(id)).thenReturn(Optional.of(submission));
         when(submissionRepository.saveAndFlush(submission)).thenReturn(submission);
@@ -233,6 +260,187 @@ class SubmissionServiceTest {
 
         verify(submissionRepository).findById(id);
         verifyNoInteractions(submissionMapper);
+    }
+
+    @Test
+    void assignSubmissionSetsAssignedToIdAndReturnsMappedResponseWhenBothExist() {
+        Long id = 1L;
+        Long adminUserId = 5L;
+        Submission submission = new Submission();
+        submission.setId(id);
+        submission.setFullName("Jane Doe");
+        submission.setStatus(SubmissionStatus.PENDING_CONSULTATION);
+
+        AdminUser adminUser = new AdminUser();
+        adminUser.setId(adminUserId);
+        adminUser.setUsername("consultant1");
+
+        SubmissionResponse expectedResponse = new SubmissionResponse(
+                id, "Jane Doe", null, null, null,
+                SubmissionStatus.PENDING_CONSULTATION, null, adminUserId, LocalDateTime.now(), LocalDateTime.now());
+
+        when(submissionRepository.findById(id)).thenReturn(Optional.of(submission));
+        when(adminUserRepository.findById(adminUserId)).thenReturn(Optional.of(adminUser));
+        when(submissionRepository.saveAndFlush(submission)).thenReturn(submission);
+        when(submissionMapper.toResponse(submission)).thenReturn(expectedResponse);
+
+        SubmissionResponse actual = submissionService.assignSubmission(id, adminUserId);
+
+        assertThat(actual).isEqualTo(expectedResponse);
+        assertThat(submission.getAssignedToId()).isEqualTo(adminUserId);
+        verify(adminUserRepository).findById(adminUserId);
+        verify(submissionRepository).saveAndFlush(submission);
+    }
+
+    @Test
+    void assignSubmissionSetsAssignedToIdToNullWhenAdminUserIdIsNull() {
+        Long id = 1L;
+        Submission submission = new Submission();
+        submission.setId(id);
+        submission.setAssignedToId(5L);
+        submission.setStatus(SubmissionStatus.PENDING_CONSULTATION);
+
+        SubmissionResponse expectedResponse = new SubmissionResponse(
+                id, null, null, null, null,
+                SubmissionStatus.PENDING_CONSULTATION, null, null, LocalDateTime.now(), LocalDateTime.now());
+
+        when(submissionRepository.findById(id)).thenReturn(Optional.of(submission));
+        when(submissionRepository.saveAndFlush(submission)).thenReturn(submission);
+        when(submissionMapper.toResponse(submission)).thenReturn(expectedResponse);
+
+        SubmissionResponse actual = submissionService.assignSubmission(id, null);
+
+        assertThat(actual).isEqualTo(expectedResponse);
+        assertThat(submission.getAssignedToId()).isNull();
+        verifyNoInteractions(adminUserRepository);
+        verify(submissionRepository).saveAndFlush(submission);
+    }
+
+    @Test
+    void assignSubmissionThrowsResourceNotFoundExceptionWhenSubmissionDoesNotExist() {
+        Long id = 999L;
+        when(submissionRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> submissionService.assignSubmission(id, 5L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Submission not found with id: " + id);
+
+        verifyNoInteractions(adminUserRepository);
+        verify(submissionRepository).findById(id);
+    }
+
+    @Test
+    void assignSubmissionThrowsResourceNotFoundExceptionWhenAdminUserDoesNotExist() {
+        Long id = 1L;
+        Long adminUserId = 999L;
+        Submission submission = new Submission();
+        submission.setId(id);
+
+        when(submissionRepository.findById(id)).thenReturn(Optional.of(submission));
+        when(adminUserRepository.findById(adminUserId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> submissionService.assignSubmission(id, adminUserId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Admin user not found with id: " + adminUserId);
+
+        verify(adminUserRepository).findById(adminUserId);
+        verify(submissionRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void listNotesReturnsNotesOrderedNewestFirstWithResolvedAuthorUsernames() {
+        Long submissionId = 1L;
+
+        SubmissionNote newerNote = new SubmissionNote();
+        newerNote.setId(2L);
+        newerNote.setSubmissionId(submissionId);
+        newerNote.setAuthorId(5L);
+        newerNote.setContent("Second note");
+
+        SubmissionNote olderNote = new SubmissionNote();
+        olderNote.setId(1L);
+        olderNote.setSubmissionId(submissionId);
+        olderNote.setAuthorId(5L);
+        olderNote.setContent("First note");
+
+        AdminUser author = new AdminUser();
+        author.setId(5L);
+        author.setUsername("consultant1");
+
+        when(submissionRepository.existsById(submissionId)).thenReturn(true);
+        when(submissionNoteRepository.findBySubmissionIdOrderByCreatedAtDesc(submissionId))
+                .thenReturn(List.of(newerNote, olderNote));
+        when(adminUserRepository.findAllById(List.of(5L))).thenReturn(List.of(author));
+
+        List<SubmissionNoteResponse> actual = submissionService.listNotes(submissionId);
+
+        assertThat(actual).hasSize(2);
+        assertThat(actual.get(0).id()).isEqualTo(2L);
+        assertThat(actual.get(0).authorUsername()).isEqualTo("consultant1");
+        assertThat(actual.get(1).id()).isEqualTo(1L);
+        assertThat(actual.get(1).authorUsername()).isEqualTo("consultant1");
+    }
+
+    @Test
+    void listNotesThrowsResourceNotFoundExceptionWhenSubmissionDoesNotExist() {
+        Long submissionId = 999L;
+        when(submissionRepository.existsById(submissionId)).thenReturn(false);
+
+        assertThatThrownBy(() -> submissionService.listNotes(submissionId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Submission not found with id: " + submissionId);
+
+        verifyNoInteractions(submissionNoteRepository);
+    }
+
+    @Test
+    void addNoteSavesNoteAuthoredByAuthenticatedAdminAndReturnsMappedResponse() {
+        Long submissionId = 1L;
+        String content = "Called the customer back";
+
+        AdminUser author = new AdminUser();
+        author.setId(5L);
+        author.setUsername("consultant1");
+
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getName()).thenReturn("consultant1");
+
+        when(submissionRepository.existsById(submissionId)).thenReturn(true);
+        when(adminUserRepository.findByUsername("consultant1")).thenReturn(Optional.of(author));
+        when(submissionNoteRepository.save(any(SubmissionNote.class))).thenAnswer(invocation -> {
+            SubmissionNote saved = invocation.getArgument(0);
+            saved.setId(10L);
+            return saved;
+        });
+
+        SubmissionNoteResponse actual = submissionService.addNote(submissionId, content, authentication);
+
+        assertThat(actual.id()).isEqualTo(10L);
+        assertThat(actual.submissionId()).isEqualTo(submissionId);
+        assertThat(actual.authorId()).isEqualTo(5L);
+        assertThat(actual.authorUsername()).isEqualTo("consultant1");
+        assertThat(actual.content()).isEqualTo(content);
+
+        ArgumentCaptor<SubmissionNote> savedCaptor = ArgumentCaptor.forClass(SubmissionNote.class);
+        verify(submissionNoteRepository).save(savedCaptor.capture());
+        assertThat(savedCaptor.getValue().getSubmissionId()).isEqualTo(submissionId);
+        assertThat(savedCaptor.getValue().getAuthorId()).isEqualTo(5L);
+        assertThat(savedCaptor.getValue().getContent()).isEqualTo(content);
+    }
+
+    @Test
+    void addNoteThrowsResourceNotFoundExceptionWhenSubmissionDoesNotExist() {
+        Long submissionId = 999L;
+        Authentication authentication = mock(Authentication.class);
+
+        when(submissionRepository.existsById(submissionId)).thenReturn(false);
+
+        assertThatThrownBy(() -> submissionService.addNote(submissionId, "content", authentication))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Submission not found with id: " + submissionId);
+
+        verifyNoInteractions(submissionNoteRepository);
+        verifyNoInteractions(adminUserRepository);
     }
 
 }
