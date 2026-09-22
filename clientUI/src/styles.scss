@@ -39,6 +39,15 @@
   --status-graduated-bg: #eafbf0;
   --status-graduated-text: #16a34a;
 
+  // Payment status badge colors (PaymentStatus) — PENDING uses warning amber (awaiting transfer),
+  // PAID uses success green, CANCELLED uses danger red, reusing the same semantics as elsewhere.
+  --status-pending-bg: #fff6e5;
+  --status-pending-text: #b7791f;
+  --status-paid-bg: #eafbf0;
+  --status-paid-text: #16a34a;
+  --status-cancelled-bg: #fdecec;
+  --status-cancelled-text: #d92d20;
+
   // Course seat-availability colors (CourseAvailabilityStatus), reusing the same
   // success/warning/danger semantics used elsewhere.
   --availability-available-bg: #eafbf0;
@@ -155,6 +164,21 @@ h4 {
   &.status-graduated {
     background: var(--status-graduated-bg);
     color: var(--status-graduated-text);
+  }
+
+  &.status-pending {
+    background: var(--status-pending-bg);
+    color: var(--status-pending-text);
+  }
+
+  &.status-paid {
+    background: var(--status-paid-bg);
+    color: var(--status-paid-text);
+  }
+
+  &.status-cancelled {
+    background: var(--status-cancelled-bg);
+    color: var(--status-cancelled-text);
   }
 }
 

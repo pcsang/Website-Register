@@ -18,12 +18,15 @@ import {
   LucideMail,
   LucideMessageCircle,
   LucidePhone,
+  LucideQrCode,
   LucideRefreshCw,
   LucideSearchX,
   LucideUser
 } from '@lucide/angular';
 
+import { PaymentService } from '../../core/services/payment.service';
 import { SubmissionService } from '../../core/services/submission.service';
+import { Payment } from '../../models/payment.model';
 import { Submission, SubmissionStatus } from '../../models/submission.model';
 
 /** Status dropdown options offered on the detail page. */
@@ -51,6 +54,7 @@ const STATUS_OPTIONS: SubmissionStatus[] = ['PENDING_CONSULTATION', 'CONFIRMED',
     LucideMail,
     LucideMessageCircle,
     LucidePhone,
+    LucideQrCode,
     LucideRefreshCw,
     LucideSearchX,
     LucideUser
@@ -62,6 +66,7 @@ export class SubmissionDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly submissionService = inject(SubmissionService);
+  private readonly paymentService = inject(PaymentService);
   private readonly snackBar = inject(MatSnackBar);
 
   /** Status dropdown options rendered in the template. */
@@ -81,6 +86,18 @@ export class SubmissionDetailComponent implements OnInit {
 
   /** `true` while a status update request is in flight. */
   updating = false;
+
+  /** The most recent payment for the loaded submission, or `null` while loading/on error. */
+  payment: Payment | null = null;
+
+  /** `true` while a payment fetch (initial load or manual refresh) is in flight. */
+  paymentLoading = false;
+
+  /** `true` while a "create/get payment" request is in flight. */
+  paymentGenerating = false;
+
+  /** `true` when the backend returned 404 for this submission's payment — no payment requested yet. */
+  paymentNotFound = false;
 
   /** Reactive control for the status dropdown. */
   readonly statusControl = new FormControl<SubmissionStatus>('PENDING_CONSULTATION', { nonNullable: true });
@@ -117,6 +134,7 @@ export class SubmissionDetailComponent implements OnInit {
         this.submission = submission;
         this.statusControl.setValue(submission.status);
         this.loading = false;
+        this.loadPayment(id);
       },
       error: (error: unknown) => {
         this.loading = false;
@@ -130,6 +148,128 @@ export class SubmissionDetailComponent implements OnInit {
         }
       }
     });
+  }
+
+  /**
+   * Loads the most recent payment for the given submission, if any. A 404 (no payment ever
+   * requested) is treated as a normal, expected state — not an error to surface to the admin.
+   *
+   * @param submissionId the submission ID to load the payment for
+   * @returns void
+   */
+  loadPayment(submissionId: number): void {
+    this.paymentLoading = true;
+    this.paymentNotFound = false;
+
+    this.paymentService.getPayment(submissionId).subscribe({
+      next: (payment) => {
+        this.payment = payment;
+        this.paymentNotFound = false;
+        this.paymentLoading = false;
+      },
+      error: (error: unknown) => {
+        this.paymentLoading = false;
+        if (error instanceof HttpErrorResponse && error.status === 404) {
+          this.payment = null;
+          this.paymentNotFound = true;
+        } else {
+          this.snackBar.open(this.extractErrorMessage(error, 'Failed to load payment.'), 'Close', {
+            duration: 5000
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * Creates a new pending payment for the loaded submission (or fetches the existing pending one
+   * if it was already created — the backend endpoint is idempotent), and displays the resulting
+   * QR code.
+   *
+   * @returns void
+   */
+  generatePaymentQr(): void {
+    if (!this.submission || this.paymentGenerating) {
+      return;
+    }
+    this.paymentGenerating = true;
+
+    this.paymentService.createOrGetPayment(this.submission.id).subscribe({
+      next: (payment) => {
+        this.payment = payment;
+        this.paymentNotFound = false;
+        this.paymentGenerating = false;
+        this.snackBar.open('Đã tạo mã QR thanh toán.', 'Close', { duration: 4000 });
+      },
+      error: (error: unknown) => {
+        this.paymentGenerating = false;
+        this.snackBar.open(this.extractErrorMessage(error, 'Failed to generate payment QR code.'), 'Close', {
+          duration: 5000
+        });
+      }
+    });
+  }
+
+  /**
+   * Re-checks the loaded submission's payment status (e.g. after the student has paid) without
+   * showing a success notification — a silent, explicitly user-triggered refresh. A 404 is still
+   * treated as a normal state, not an error.
+   *
+   * @returns void
+   */
+  refreshPaymentStatus(): void {
+    if (!this.submission || this.paymentLoading) {
+      return;
+    }
+    this.paymentLoading = true;
+    this.paymentNotFound = false;
+
+    this.paymentService.getPayment(this.submission.id).subscribe({
+      next: (payment) => {
+        this.payment = payment;
+        this.paymentNotFound = false;
+        this.paymentLoading = false;
+      },
+      error: (error: unknown) => {
+        this.paymentLoading = false;
+        if (error instanceof HttpErrorResponse && error.status === 404) {
+          this.payment = null;
+          this.paymentNotFound = true;
+        } else {
+          this.snackBar.open(this.extractErrorMessage(error, 'Failed to refresh payment status.'), 'Close', {
+            duration: 5000
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * Formats a payment amount as Vietnamese-locale-grouped digits with a trailing "đ" suffix,
+   * matching the convention used for course prices elsewhere in the admin area.
+   *
+   * @param amount the payment amount to format
+   * @returns the formatted amount string
+   */
+  formattedPaymentAmount(amount: number): string {
+    return `${amount.toLocaleString('vi-VN')}đ`;
+  }
+
+  /**
+   * Maps a payment status to its Vietnamese display label for the status badge.
+   *
+   * @param status the payment status to label
+   * @returns the Vietnamese label for the given status
+   */
+  paymentStatusLabel(status: Payment['status']): string {
+    switch (status) {
+      case 'PENDING':
+        return 'Chờ thanh toán';
+      case 'PAID':
+        return 'Đã thanh toán';
+      case 'CANCELLED':
+        return 'Đã huỷ';
+    }
   }
 
   /**
