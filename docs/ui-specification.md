@@ -12,7 +12,8 @@ generating/viewing a VietQR tuition-payment request, backed by a new `PaymentSer
 This document describes the actual current implementation under `clientUI/src/`, cross-checked against the
 real source files. For the phased plan and rationale behind deviations, see
 `java-spring-boot-angular-project-prompts.md`, `docs/planning/plan-1-ui-reskin-ngan-han.md`,
-`docs/planning/plan-2-full-redesign-driveup.md`, and `CHECKLIST.md` at the repo root.
+`docs/planning/plan-2-full-redesign-driveup.md`, and `CHECKLIST.md` at the repo root. For a single
+at-a-glance system diagram, see [`docs/architecture-diagram.md`](architecture-diagram.md).
 
 ---
 
