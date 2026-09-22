@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -68,6 +69,19 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void dataIntegrityViolationReturns400WithGenericMessage() throws Exception {
+        mockMvc.perform(get("/test/constraint-violation"))
+                .andDo(print())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value(
+                        "The request could not be completed because it references invalid or non-existent data"))
+                .andExpect(jsonPath("$.errors").doesNotExist())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.path").value("/test/constraint-violation"));
+    }
+
+    @Test
     void unexpectedErrorReturns500WithoutStackTrace() throws Exception {
         mockMvc.perform(get("/test/boom"))
                 .andDo(print())
@@ -100,6 +114,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test/boom")
         public String boom() {
             throw new IllegalStateException("some internal detail that must not leak");
+        }
+
+        @GetMapping("/test/constraint-violation")
+        public String constraintViolation() {
+            throw new DataIntegrityViolationException("violates foreign key constraint \"fk_submissions_course\"");
         }
 
     }

@@ -3,6 +3,7 @@ package com.register.backend.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -137,6 +138,34 @@ public class GlobalExceptionHandler {
         ErrorResponse body = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
                 "Malformed request body",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /**
+     * Handles a database constraint violation surfacing as a request-shape problem rather than a server
+     * bug — most notably {@code POST /api/submissions} with a {@code courseId} that doesn't reference an
+     * existing course: nothing validates that at the DTO/service layer (a submission is allowed to name any
+     * course id), so the {@code fk_submissions_course} foreign key is the only thing that rejects it.
+     * Without this handler, that rejection fell through to {@link #handleUnexpectedError}, returning a
+     * misleading 500 (with a stack trace logged) for what is really a 400-worthy bad request on a fully
+     * public, unauthenticated endpoint. The underlying SQL/constraint-name detail is logged server-side
+     * only, never included in the response, for the same reason {@link #handleUnexpectedError} doesn't leak
+     * exception detail to the client.
+     *
+     * @param ex      the constraint violation
+     * @param request the current request, used to report the failing path
+     * @return a 400 response with a generic message
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex,
+                                                                        HttpServletRequest request) {
+        log.warn("Data integrity violation while processing request {}: {}", request.getRequestURI(), ex.getMessage());
+
+        ErrorResponse body = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "The request could not be completed because it references invalid or non-existent data",
                 request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
