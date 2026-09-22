@@ -215,3 +215,44 @@ the original IP was still rate-limited, confirming per-IP isolation. Test data c
 was deleted afterward and the test backend instance was stopped.
 
 See `CHECKLIST.md`'s Phase 25 entry for the full narrative and the JWT-secret fix's own verification.
+
+---
+
+## Addendum (2026-09-22): Phase 27 — SePay Payment Integration
+
+Phase 27 shipped after this review and introduced the app's first genuinely public, unauthenticated-by-
+Spring-Security, *mutating* endpoint (`POST /api/webhooks/sepay`) — worth a dedicated look against this
+review's same categories rather than assuming Phase 25's findings still cover it. See `CHECKLIST.md`'s
+Phase 27 entry for the full implementation log.
+
+- **Secret management (maps to areas 4/15 above):** the webhook's shared secret
+  (`app.sepay.webhook-secret` / `SEPAY_WEBHOOK_SECRET`) initially shipped with the *same* class of bug
+  areas 4/15 fixed for `JWT_SECRET`/`ADMIN_PASSWORD` — a dev-only fallback value reachable in `prod` if the
+  env var was left unset. Caught by an independent review of Phase 27 and fixed the same way: a no-fallback
+  override in `application-prod.yml`, so prod now fails to start rather than silently accepting a value
+  that's plaintext-visible in git history. Status: ✅ Adequate (fixed before merge, not deferred).
+- **Authorization model (maps to area 2/16 above):** this endpoint deliberately does **not** use Spring
+  Security's JWT model — it can't, since the caller is SePay's server, not a logged-in admin. Auth is a
+  manual constant-time (`MessageDigest.isEqual`) comparison of an `Authorization` header against the
+  configured secret, performed inside `SepayWebhookController` itself. The route sits under the existing
+  `permitAll()` catch-all (everything outside `/api/admin/**`), which is correct *given* the controller
+  enforces its own check — but it means this one endpoint's security depends on that controller's code
+  being right, not on the centrally-configured `SecurityConfig` rule. Reviewed and found sound (null-header
+  short-circuit, no timing side-channel, no bypass found), but flagged here as a different *kind* of trust
+  boundary than every other endpoint in this app, worth remembering if this pattern is ever copied for a
+  future integration.
+- **Rate limiting (maps to area 17 above):** deliberately **not** extended to this endpoint.
+  `RateLimitingFilter`'s per-client-IP model exists to slow down abuse from many distinct end-user IPs; a
+  webhook has exactly one legitimate caller (SePay's servers), so per-IP limiting doesn't fit and the
+  shared-secret check is the real control here. Documented choice, not a gap.
+- **New control this review didn't have a category for — financial-integrity/anti-fraud:** the webhook
+  trusts SePay's reported transfer amount to decide whether to mark a payment paid, but the payment-
+  matching code (`DUP` + a sequential payment ID) is visible on the QR shown to the payer, i.e. guessable/
+  observable. An independent review of Phase 27 identified that this combination would let a trivial real
+  transfer (e.g. 1,000 VND) with a guessed code mark an unrelated, much larger tuition payment as paid.
+  Fixed with a 90%-of-expected-amount floor in `PaymentService.handleSepayWebhook` — a transfer below that
+  floor leaves the payment `PENDING` for manual admin review instead of auto-completing it. Worth recording
+  here since it's a real financial-integrity control, not just a data-quality nicety.
+- **Everything else** (input validation posture on the new `SepayWebhookRequest` DTO, error-response shape,
+  logging) follows the same already-adequate patterns documented elsewhere in this review — no new issues
+  found there.

@@ -1,18 +1,21 @@
 # Backend Technical Specification
 
 **Scope:** This document describes the **current, actual implementation** of the Spring Boot backend at
-`backend/` in this repository, as of the completion of **Plan 2 — Full DriveUp domain adoption** (D1–D6),
-which itself builds on roadmap Phases 1–23 (backend MVP through JWT auth, Gradle migration, backend/
-integration testing, Docker, Docker Compose, Neon/Flyway, and a live Render deployment). It is derived
-directly from the source code under `backend/src/main/java/com/register/backend/`, not from the roadmap
-document or `README.md`, which may describe future or partially-stale plans.
+`backend/` in this repository, as of the completion of **Phase 27 — SePay Payment Integration**, which
+itself builds on **Plan 2 — Full DriveUp domain adoption** (D1–D6), roadmap Phases 1–23 (backend MVP
+through JWT auth, Gradle migration, backend/integration testing, Docker, Docker Compose, Neon/Flyway, and a
+live Render deployment), Phase 24 (Angular deployed to Vercel), Phase 25 (Production Security Review — rate
+limiting, fail-fast prod secrets) and Phase 26 (Final Architecture Review — read-only, no code changes). It
+is derived directly from the source code under `backend/src/main/java/com/register/backend/`, not from the
+roadmap document or `README.md`, which may describe future or partially-stale plans.
 
 For the full original phased roadmap, see
 [`java-spring-boot-angular-project-prompts.md`](../java-spring-boot-angular-project-prompts.md). For the
 DriveUp UI/UX redesign that Plan 2 implements, see
-[`docs/planning/plan-2-full-redesign-driveup.md`](planning/plan-2-full-redesign-driveup.md). For day-to-day
-working rules and local environment setup, see [`CLAUDE.md`](../CLAUDE.md) and
-[`CHECKLIST.md`](../CHECKLIST.md).
+[`docs/planning/plan-2-full-redesign-driveup.md`](planning/plan-2-full-redesign-driveup.md). For the SePay
+payment integration's operational/runbook details, see
+[`docs/deployment/sepay-payment-workflow.md`](deployment/sepay-payment-workflow.md). For day-to-day working
+rules and local environment setup, see [`CLAUDE.md`](../CLAUDE.md) and [`CHECKLIST.md`](../CHECKLIST.md).
 
 ---
 
@@ -54,12 +57,12 @@ The backend follows a strict **Controller → Service → Repository** layering 
 | `controller/` | Thin REST controllers — validate input via annotations, delegate to exactly one service call, return a response DTO. No business logic or repository access. |
 | `dto/request/` | Inbound request body shapes (Java `record`s), carrying Jakarta Validation constraints. |
 | `dto/response/` | Outbound response body shapes (Java `record`s) — the only shapes the API ever returns; JPA entities are never serialized directly. |
-| `entity/` | JPA entities mapped to database tables (`Submission`, `AdminUser`, `Course`, `DashboardSettings`). |
-| `enums/` | Shared enumerations used by entities/DTOs (`SubmissionStatus`, `LicenseClass`, `CourseAvailabilityStatus`). |
+| `entity/` | JPA entities mapped to database tables (`Submission`, `AdminUser`, `Course`, `DashboardSettings`, `Payment`). |
+| `enums/` | Shared enumerations used by entities/DTOs (`SubmissionStatus`, `LicenseClass`, `CourseAvailabilityStatus`, `PaymentStatus`). |
 | `exception/` | Custom exceptions, the global error response shape, and the centralized `@RestControllerAdvice` handler. |
-| `mapper/` | Manual entity ↔ DTO mapping classes (no MapStruct/ModelMapper — intentionally simple, hand-written). |
+| `mapper/` | Manual entity ↔ DTO mapping classes (no MapStruct/ModelMapper — intentionally simple, hand-written). Uniformly stateless **except** `PaymentMapper` (Phase 27), which takes four `@Value`-injected SePay/bank config properties in its constructor to build a VietQR image URL — the one mapper in the codebase that isn't a pure `@Component` with no injected state. |
 | `repository/` | Spring Data JPA repository interfaces (derived queries, JPQL `@Query`s, and one native SQL projection query). |
-| `security/` | JWT admin authentication: `JwtService`, `JwtAuthenticationFilter`, `SecurityConfig`, `RestAuthenticationEntryPoint`, `RestAccessDeniedHandler`. |
+| `security/` | JWT admin authentication: `JwtService`, `JwtAuthenticationFilter`, `SecurityConfig`, `RestAuthenticationEntryPoint`, `RestAccessDeniedHandler`. Also `RateLimitingFilter` (Phase 25) — a per-client-IP rate limiter for the two fully public endpoints (`POST /api/submissions`, `POST /api/auth/login`). |
 | `service/` | Business logic and `@Transactional` boundaries; the only layer that talks to repositories. |
 
 Root class: `BackendApplication` (`@SpringBootApplication`, standard `main()` entry point).
@@ -155,13 +158,50 @@ auto-generated identity — there is only ever one row), seeded by `V4__add_dash
 | `examCount` | `Integer` | `exam_count` | nullable | `INTEGER`, `CHECK (≥ 0)` | Optional companion figure for the "trên N lượt thi" framing. Also `NULL` by default. |
 | `updatedAt` | `LocalDateTime` | `updated_at` | `NOT NULL` | — | Touched on every insert/update |
 
+### 3.6 `Payment` (`entity/Payment.java`)
+
+Table: `payments`. Introduced in **Phase 27** for the SePay VietQR payment integration — not part of the
+original roadmap or Plan 2.
+
+| Field | Java Type | Column | Nullable | Length / Type | Bean Validation | Notes |
+|---|---|---|---|---|---|---|
+| `id` | `Long` | `id` | — | — | — | `@Id`, `@GeneratedValue(strategy = IDENTITY)` |
+| `submissionId` | `Long` | `submission_id` | `NOT NULL` | `BIGINT`, FK → `submissions(id)` | `@NotNull` | Plain FK id field, not a JPA relationship — same style as `Submission.courseId` → `Course`; no navigation from `Payment` back to a loaded `Submission` entity is needed anywhere |
+| `amount` | `BigDecimal` | `amount` | `NOT NULL` | `NUMERIC(12,2)` | `@NotNull` | Snapshotted from `Course.price` at payment-creation time, so a later price edit never retroactively changes an already-generated QR/amount |
+| `status` | `PaymentStatus` | `status` | `NOT NULL` | `VARCHAR(20)`, `@Enumerated(EnumType.STRING)`, DB `CHECK (status IN ('PENDING','PAID','CANCELLED'))` | `@NotNull` | Starts `PENDING` on creation |
+| `sepayTransactionId` | `String` | `sepay_transaction_id` | nullable | `VARCHAR(100)`, DB `UNIQUE` | none | Set once a webhook marks the payment `PAID`; the DB unique constraint is a race-safety net behind the service layer's own duplicate-webhook pre-check |
+| `paidAt` | `LocalDateTime` | `paid_at` | nullable | `TIMESTAMP(6)` | none | Set when the webhook marks the payment `PAID` |
+| `createdAt` | `LocalDateTime` | `created_at` | `NOT NULL`, `updatable = false` | — | — | Set via `@PrePersist` |
+| `updatedAt` | `LocalDateTime` | `updated_at` | `NOT NULL` | — | — | Set on insert and refreshed via `@PreUpdate` on every update |
+
+Deliberately **decoupled** from `Submission.status` — the admin still manually advances a submission's
+status; a payment is shown alongside it as informational context, not auto-linked to it. One submission can
+have multiple `Payment` rows over time (e.g. a stale `PENDING` one superseded by a freshly generated one) —
+there is no unique constraint tying a submission to a single payment row, only an index
+(`idx_payments_submission_id`) for lookup performance. There is deliberately no `EXPIRED` status: this app
+has no scheduler/background job, and a stale `PENDING` payment can simply be superseded by generating a
+fresh one rather than needing to be aged out automatically.
+
+### 3.7 `PaymentStatus` (`enums/PaymentStatus.java`)
+
+```
+PENDING, PAID, CANCELLED
+```
+
+Used by `Payment.status` and `PaymentResponse.status`. See [3.6](#36-payment-entitypaymentjava) for why
+there's no `EXPIRED` state and why this is deliberately decoupled from `SubmissionStatus`.
+
 ---
 
 ## 4. REST API
 
 All endpoints are served under the embedded Tomcat server. `server.port` reads `${PORT:8080}` — `8080`
 locally/Docker Compose, whatever Render assigns in production. Controller groups: public (`/api/health`,
-`/api/submissions`, `/api/courses`, `/api/auth/login`), admin (`/api/admin/**`, JWT-protected).
+`/api/submissions`, `/api/courses`, `/api/auth/login`, `/api/webhooks/sepay`), admin (`/api/admin/**`,
+JWT-protected — including the Phase 27 `/api/admin/submissions/{id}/payment` endpoints). `POST
+/api/submissions` and `POST /api/auth/login` are additionally rate-limited per client IP (Phase 25 — see
+[Section 6.3](#63-security-security-package)); `POST /api/webhooks/sepay` is public but separately
+authenticated via a shared-secret header rather than Spring Security (see [4.13](#413-post-apiwebhookssepay)).
 
 ### 4.1 `GET /api/health`
 
@@ -284,10 +324,68 @@ Computed via five separate `COUNT` queries (one per status + total), same patter
 |---|---|
 | `monthlyRegistrations` | Last 6 calendar months including the current one, oldest first. Grouped via a **native SQL** query (`date_trunc('month', created_at)`, `SubmissionRepository.countRegistrationsByMonthSince`) — months with zero submissions are absent from the SQL result and zero-filled by `DashboardService` so the response always has exactly 6 entries. |
 | `upcomingCourses` | Courses with `startDate >= today`, soonest first, capped at `app.dashboard.upcoming-courses-limit` (`DASHBOARD_UPCOMING_COURSES_LIMIT` env var, default `4`). Reuses `CourseResponse` — no separate DTO. |
-| `estimatedRevenueThisMonth` | Sum of `Course.price` × count, for submissions created since the start of the current calendar month with a registered-seat status and a non-null `courseId`. **An estimate, not real payment data** — this system has no payment/transaction concept. |
+| `estimatedRevenueThisMonth` | Sum of `Course.price` × count, for submissions created since the start of the current calendar month with a registered-seat status and a non-null `courseId`. **An estimate, not real payment data** — deliberately still true after Phase 27: this calculation is entirely independent of the new `Payment` table (see [3.6](#36-payment-entitypaymentjava)); nothing in `DashboardService` reads `Payment` rows. |
 | `settings` | The current `DashboardSettings` row, verbatim. |
 
-### 4.11 Endpoint summary table
+### 4.11 Admin payment endpoints (`AdminPaymentController`, all `ROLE_ADMIN`)
+
+New in **Phase 27**. Not part of the original roadmap or Plan 2.
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/api/admin/submissions/{submissionId}/payment` | Creates a new `PENDING` payment for the submission's tuition fee (snapshotting `Course.price` as `Payment.amount`), or returns the existing `PENDING` one if already created — **idempotent**, calling it twice in a row does not create a duplicate. `201 Created`. `404` if the submission doesn't exist, has no associated `courseId`, or that course doesn't exist. |
+| `GET` | `/api/admin/submissions/{submissionId}/payment` | Retrieves the most recently created payment for the submission (any status). `404` if no payment has ever been created for that submission — the frontend treats this as the normal "no payment requested yet" empty state, not an error. |
+
+### 4.12 `PaymentResponse` shape
+
+Used by both `AdminPaymentController` endpoints.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `Long` | |
+| `submissionId` | `Long` | |
+| `amount` | `BigDecimal` | Snapshotted `Course.price` at payment-creation time |
+| `status` | `PaymentStatus` (`"PENDING"`/`"PAID"`/`"CANCELLED"`) | |
+| `paymentCode` | `String` | Derived, not persisted — `"DUP" + zero-padded payment id` (e.g. `DUP000042`), embedded in the transfer content so a webhook payload can be matched back to this payment |
+| `qrImageUrl` | `String` | Derived, not persisted — a `https://img.vietqr.io/image/...` URL built by `PaymentMapper` from the `app.sepay.bank-code`/`bank-account-number`/`qr-template` config plus the amount, `paymentCode` (as `addInfo`), and `app.sepay.account-holder-name` (as `accountName`), all URL-encoded |
+| `paidAt` | `LocalDateTime` (nullable) | Set once a webhook marks the payment `PAID` |
+| `createdAt` / `updatedAt` | `LocalDateTime` | |
+
+### 4.13 `POST /api/webhooks/sepay`
+
+**Controller:** `SepayWebhookController` → `PaymentService.handleSepayWebhook()`. New in **Phase 27**.
+Public route (not under `/api/admin/**`), left `permitAll()` by `SecurityConfig`'s existing catch-all rule
+— see [Section 6.3](#63-security-security-package) for why this endpoint authenticates itself rather than
+going through Spring Security/JWT.
+
+**Request body:** `SepayWebhookRequest` (`id`, `gateway`, `transactionDate`, `accountNumber`, `content`,
+`transferType`, `transferAmount`, `referenceCode`) — best-effort field names based on commonly documented
+SePay webhook shape, not independently verified against live SePay docs; no Jakarta Validation annotations
+on this DTO, since it's an external, unverified sender and the service layer decides what to do with a
+partial payload rather than the controller 400ing it.
+
+**Behavior:**
+1. The controller compares the `Authorization` header against `"Apikey " + app.sepay.webhook-secret` via
+   `MessageDigest.isEqual` (constant-time comparison) — `401 Unauthorized` if missing/mismatched, otherwise
+   delegates to `PaymentService.handleSepayWebhook()` and always responds `200 OK`.
+2. The service silently ignores (logs and returns, never throws) any payload that: isn't an inbound
+   transfer (`transferType != "in"`); has already been processed (`sepayTransactionId` already recorded —
+   idempotency, guarded both by an app-level `existsBySepayTransactionId` pre-check and the DB's own unique
+   constraint as a race-safety net); has no `content` a `DUP<id>` payment code can be extracted from
+   (case-insensitive regex, tolerant of the noisy surrounding bank transfer-content text); references an
+   unknown payment id; or references a payment that's no longer `PENDING`.
+3. If the reported `transferAmount` is below **90%** of the payment's expected `amount`, the payment is
+   left `PENDING` for manual admin review rather than auto-marked paid — a floor against a trivial real bank
+   transfer (e.g. 1,000 VND) carrying a guessed/observed sequential `paymentCode` being accepted as full
+   payment of an unrelated, much larger tuition amount. A transfer at or above that floor (including an
+   amount that doesn't exactly match, e.g. a bank-fee-driven shortfall) is still accepted, with a mismatch
+   simply logged — "bank transfer is the source of truth" for minor discrepancies.
+4. Otherwise the matching payment is marked `PAID`, `paidAt` is set, and `sepayTransactionId` is recorded.
+
+**Response:** `200 OK` (valid, processed or silently-ignored payload) or `401 Unauthorized` (bad/missing
+auth header).
+
+### 4.14 Endpoint summary table
 
 | Method | Path | Auth | Success |
 |---|---|---|---|
@@ -305,6 +403,8 @@ Computed via five separate `COUNT` queries (one per status + total), same patter
 | `GET` | `/api/admin/dashboard/summary` | `ROLE_ADMIN` | `200` |
 | `GET` | `/api/admin/dashboard/overview` | `ROLE_ADMIN` | `200` |
 | `GET`/`PATCH` | `/api/admin/dashboard/settings` | `ROLE_ADMIN` | `200` |
+| `POST`/`GET` | `/api/admin/submissions/{id}/payment` | `ROLE_ADMIN` | `201`/`200` |
+| `POST` | `/api/webhooks/sepay` | None (shared-secret header, verified manually — see [4.13](#413-post-apiwebhookssepay)) | `200` |
 
 `/swagger-ui.html`, `/v3/api-docs`, `/actuator/health`/`/actuator/info` also remain public.
 
@@ -314,9 +414,17 @@ Computed via five separate `COUNT` queries (one per status + total), same patter
 
 **Unchanged since Phase 16** — see `exception/GlobalExceptionHandler.java`, `ErrorResponse.java`. Shape:
 `{status, message, errors, timestamp, path}` (`errors` omitted unless present). Every new endpoint in
-Plan 2 (Course, Dashboard overview/settings) funnels through the same handler — `ResourceNotFoundException`
-→ `404` (e.g. "Course not found with id: {id}"), Bean Validation failures → `400` with field errors, same
-as `Submission`. No new exception types were needed.
+Plan 2 (Course, Dashboard overview/settings) and Phase 27 (`AdminPaymentController`) funnels through the
+same handler — `ResourceNotFoundException` → `404` (e.g. "Course not found with id: {id}", "No payment
+found for submission id: {id}"), Bean Validation failures → `400` with field errors, same as `Submission`.
+No new exception types were needed for Course/Dashboard/Payment.
+
+Two responses in the same `{status, message, ..., timestamp, path}` `ErrorResponse` shape are written
+**outside** `GlobalExceptionHandler` (neither is thrown as a Java exception that reaches it): `429 Too Many
+Requests` from `RateLimitingFilter` (Phase 25, a servlet filter that runs before Spring MVC's dispatcher —
+see [6.3](#63-security-security-package)), and the `401 Unauthorized` from `SepayWebhookController` on a
+bad/missing webhook auth header (Phase 27 — that one is a plain `ResponseEntity`, not even the
+`ErrorResponse` shape, since it's a single boolean check with no field-level detail to report).
 
 ---
 
@@ -333,12 +441,43 @@ Unchanged — auto-generated spec at `/v3/api-docs`, UI at `/swagger-ui.html`, b
 
 ### 6.3 Security (`security/` package)
 
-Unchanged since Phase 16 — stateless JWT, `SecurityConfig` protects `/api/admin/**` with `hasRole("ADMIN")`,
-everything else `permitAll()`. The new `/api/admin/courses/**` and `/api/admin/dashboard/**` routes fall
-under the existing `/api/admin/**` rule automatically — no `SecurityConfig` changes were needed for Plan 2.
-`/api/courses` (public) falls under the existing catch-all `permitAll()`. See the Phase 16 login/
-per-request flow description in this doc's git history, or `CLAUDE.md`, for the full walkthrough — not
-repeated here since nothing changed.
+Core JWT flow **unchanged since Phase 16** — stateless JWT, `SecurityConfig` protects `/api/admin/**` with
+`hasRole("ADMIN")`, everything else `permitAll()`. The `/api/admin/courses/**`, `/api/admin/dashboard/**`,
+and (Phase 27) `/api/admin/submissions/{id}/payment` routes all fall under the existing `/api/admin/**` rule
+automatically — no rule changes were needed for either Plan 2 or Phase 27. `/api/courses` and
+`/api/webhooks/sepay` (both public) fall under the existing catch-all `permitAll()`. See the Phase 16
+login/per-request flow description in this doc's git history, or `CLAUDE.md`, for the full JWT walkthrough
+— not repeated here since that part hasn't changed.
+
+**Phase 25 added `RateLimitingFilter`**, a plain `OncePerRequestFilter` (not a `@Component` — instantiated
+directly inside `SecurityConfig.securityFilterChain()` and registered via `addFilterBefore`, ahead of
+`JwtAuthenticationFilter`, which itself runs ahead of Spring Security's default username/password filter).
+It applies an in-memory, per-client-IP, fixed 1-minute-window request cap to exactly two fully public,
+unauthenticated endpoints that would otherwise have zero abuse protection:
+
+| Endpoint | Default limit | Env var |
+|---|---|---|
+| `POST /api/submissions` | 5/minute/IP | `RATE_LIMIT_SUBMISSIONS_PER_MINUTE` |
+| `POST /api/auth/login` | 10/minute/IP | `RATE_LIMIT_LOGIN_ATTEMPTS_PER_MINUTE` |
+
+Every other request (including all of `/api/admin/**`, which is already behind JWT) passes through
+untouched. The client IP is taken from the first entry of `X-Forwarded-For` when present (Render sits
+behind a reverse proxy), falling back to `HttpServletRequest.getRemoteAddr()` for local dev. Exceeding the
+limit short-circuits the filter chain with `429 Too Many Requests` in the standard `ErrorResponse` shape
+(see [Section 5](#5-global-error-handling)); tracking entries are opportunistically swept out at most once
+every 5 minutes so the in-memory map doesn't grow unbounded over a long-running instance's lifetime. This is
+a deliberately simple fixed-window algorithm (allows up to 2× the limit right at a window boundary), an
+accepted tradeoff for a small public app's realistic threat model — see `RateLimitingFilter`'s own Javadoc.
+
+**Phase 27's `POST /api/webhooks/sepay` is deliberately *not* protected by Spring Security or
+`RateLimitingFilter` at all** — it's called by SePay's server, not a browser or the admin SPA, so neither
+the JWT/`ROLE_ADMIN` model nor a per-client-IP limiter (a single trusted server-to-server caller) fits.
+Instead, `SepayWebhookController` verifies the request itself, entirely outside the Spring Security filter
+chain: it compares the incoming `Authorization` header against `"Apikey " + app.sepay.webhook-secret`
+(`SEPAY_WEBHOOK_SECRET` env var) using `MessageDigest.isEqual` for a constant-time comparison, returning a
+bare `401 Unauthorized` on any mismatch/absence before ever calling into `PaymentService`. The exact header
+name/scheme is a best-effort guess at SePay's convention, not independently verified against a live SePay
+dashboard.
 
 ### 6.4 Actuator
 
@@ -357,6 +496,7 @@ Migrations live in `backend/src/main/resources/db/migration/`:
 | `V3__extend_submissions.sql` | `submissions.course_id` FK + 4-state status remap, including a **real data migration** for any existing rows (D2) — see [Section 8.2](#82-v3extend_submissionssql) |
 | `V4__add_dashboard_settings.sql` | `dashboard_settings` table, single seeded row (D3) |
 | `V5__seed_landing_courses.sql` | Seeds the 3 fixed course packages (B1/B2/C) shown on the public landing page, so that section isn't empty on a fresh database (D6) |
+| `V6__add_payments_table.sql` | `payments` table (Phase 27) — FK to `submissions`, `status` `CHECK` constraint, and a `UNIQUE` constraint on `sepay_transaction_id` (nullable, so multiple `PENDING` rows with no transaction ID yet are still allowed) |
 
 `spring.flyway.baseline-on-migrate: true` — lets Flyway adopt a pre-existing (pre-Flyway) database without
 failing on "table already exists."
@@ -376,37 +516,69 @@ string with `?sslmode=require`).
 Activated via `SPRING_PROFILES_ACTIVE=prod` (set on Render): `show-sql: false`, `open-in-view: false`,
 Hikari `maximum-pool-size: 5` (sized for Neon's free-tier connection limits).
 
+**Phase 25 fail-fast secrets**: `application.yml`'s `${JWT_SECRET:dev-only-...}` and
+`${ADMIN_PASSWORD:dev-only-...}` bindings exist purely for local-dev convenience — both defaults are
+plaintext-visible in this repo's git history, so `application-prod.yml` re-binds `app.jwt.secret` and
+`app.admin.password` with **no fallback value** (`${JWT_SECRET}` / `${ADMIN_PASSWORD}`), so Spring fails to
+start with a loud startup error under `SPRING_PROFILES_ACTIVE=prod` if either env var is left unset, rather
+than silently running with a known-weak credential. **Phase 27 extends the same fail-fast pattern** to
+`app.sepay.webhook-secret` (`${SEPAY_WEBHOOK_SECRET}`, no fallback) — for the same reason: anyone who read
+`application.yml`'s dev-only default out of git history could otherwise forge `POST /api/webhooks/sepay`
+calls in production and mark arbitrary payments `PAID`. The other four `app.sepay.*` properties
+(bank-account-number/bank-code/account-holder-name/qr-template) are **not** given the fail-fast treatment —
+an unset one just produces a broken/empty VietQR image URL, not a security exposure, so `application.yml`'s
+plain env-var-with-empty-default bindings are left as-is for those.
+
 ### 6.7 Environment variables
 
 | Variable | Default (local dev only) | Purpose |
 |---|---|---|
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | local Postgres | Datasource |
 | `ALLOWED_ORIGINS` | `http://localhost:4200` | CORS |
-| `JWT_SECRET` | dev-only placeholder | JWT signing (≥32 bytes) |
+| `JWT_SECRET` | dev-only placeholder | JWT signing (≥32 bytes) — **no fallback in `prod`, see 6.6** |
 | `JWT_EXPIRATION_MS` | `3600000` (1h) | Token lifetime |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / dev-only placeholder | Seeded admin account |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / dev-only placeholder | Seeded admin account — password **no fallback in `prod`, see 6.6** |
 | `PORT` | `8080` | Listen port — Render assigns this dynamically |
 | `DASHBOARD_UPCOMING_COURSES_LIMIT` | `4` | Rows in the overview's upcoming-courses list |
+| `RATE_LIMIT_SUBMISSIONS_PER_MINUTE` | `5` | Phase 25 — `POST /api/submissions` cap per client IP per minute |
+| `RATE_LIMIT_LOGIN_ATTEMPTS_PER_MINUTE` | `10` | Phase 25 — `POST /api/auth/login` cap per client IP per minute |
+| `SEPAY_WEBHOOK_SECRET` | dev-only placeholder | Phase 27 — shared secret `SepayWebhookController` expects in the `Authorization: Apikey <secret>` header — **no fallback in `prod`, see 6.6** |
+| `SEPAY_BANK_ACCOUNT_NUMBER` | empty | Phase 27 — beneficiary bank account number, used to build the VietQR image URL |
+| `SEPAY_BANK_CODE` | empty | Phase 27 — beneficiary bank's VietQR bank code |
+| `SEPAY_ACCOUNT_HOLDER_NAME` | empty | Phase 27 — beneficiary account holder's display name shown on the QR |
+| `SEPAY_QR_TEMPLATE` | `compact2` | Phase 27 — VietQR image template name |
 
-**Always override the non-`PORT`/non-limit ones outside local development** — see `README.md`.
+**Always override the non-`PORT`/non-limit/non-template ones outside local development** — see `README.md`
+and [`docs/deployment/sepay-payment-workflow.md`](deployment/sepay-payment-workflow.md) for the SePay-specific
+setup.
 
 ---
 
 ## 7. Mapping & Service Layer Notes
 
-- `SubmissionMapper`, `CourseMapper` (`mapper/`) — plain `@Component`s, hand-written `toEntity`/`toResponse`
-  (and `CourseMapper.applyUpdate` for the admin update endpoint). No library-based mapping anywhere.
-- Five service classes: `SubmissionService`, `DashboardService`, `AuthService`, `CourseService` (D1),
-  all constructor injection, `@Transactional(readOnly = true)` on reads, `@Transactional` on writes.
+- `SubmissionMapper`, `CourseMapper`, `PaymentMapper` (`mapper/`) — plain `@Component`s, hand-written
+  `toEntity`/`toResponse` (and `CourseMapper.applyUpdate` for the admin update endpoint). No library-based
+  mapping anywhere. `PaymentMapper` is the one mapper that isn't purely stateless — see the
+  [package-layout table](#2-layered-architecture--package-layout) — its constructor takes four
+  `@Value`-injected `app.sepay.*` config properties (bank account/code/holder name/QR template) so it can
+  build a VietQR image URL and derive a `paymentCode` inside `toResponse()`, both of which are computed, not
+  persisted (see [3.6](#36-payment-entitypaymentjava)/[4.12](#412-paymentresponse-shape)).
+- **Five** service classes: `SubmissionService`, `DashboardService`, `AuthService`, `CourseService` (D1),
+  `PaymentService` (Phase 27) — all constructor injection, `@Transactional(readOnly = true)` on reads,
+  `@Transactional` on writes.
 - `CourseService.REGISTERED_STATUSES` (`CONFIRMED`/`IN_PROGRESS`/`GRADUATED`) is `public static final` and
   reused as-is by `DashboardService`'s revenue calculation — one source of truth for "what counts as a
-  registered seat," not duplicated.
+  registered seat," not duplicated. `PaymentService` does **not** consult this — it's entirely independent
+  of `SubmissionStatus`, by the same "decoupled" design as `Payment` itself.
 - `SubmissionRepository` — see [4.5](#45-admin-submission-endpoints-adminsubmissioncontroller-all-role_admin)
   for `search`; also `countByCourseIdAndStatusIn` (a course's live `seatsRegistered`),
   `findByStatusInAndCreatedAtGreaterThanEqualAndCreatedAtLessThanAndCourseIdIsNotNull` (revenue calc),
   `countRegistrationsByMonthSince` (native SQL, month-grouped chart data).
 - `CourseRepository.search(licenseClass, branch, pageable)` — same `(:param IS NULL OR ...)` JPQL-guard
   pattern as `SubmissionRepository.search`.
+- `PaymentRepository` (Phase 27) — `findBySubmissionIdAndStatus` (the idempotent pending-payment lookup),
+  `findFirstBySubmissionIdOrderByCreatedAtDesc` (the "most recent payment" lookup for the `GET` endpoint),
+  `existsBySepayTransactionId` (the webhook's app-level duplicate-delivery pre-check).
 
 ---
 
@@ -432,29 +604,74 @@ than adding a placeholder `0` that could be mistaken for real data.
 
 ### 8.3 Estimated revenue and pass rate are not real data
 
-Neither figure reflects actual transactions or exam results — this system has no payment or exam-tracking
-concept. `estimatedRevenueThisMonth` is a projection (course price × registered-seat count); `passRatePercent`
-is manually entered by an admin. Both are labeled as such in Javadoc; don't mistake either for ground truth
-when reasoning about the data model.
+Neither figure reflects actual transactions or exam results. `estimatedRevenueThisMonth` is a projection
+(course price × registered-seat count) computed from `Submission` rows, entirely independent of the
+`Payment` table introduced in Phase 27 (see [8.4](#84-payment-is-deliberately-decoupled-from-submission-and-the-dashboard));
+`passRatePercent` is manually entered by an admin, since this system still has no exam-tracking concept at
+all. Both are labeled as such in Javadoc; don't mistake either for ground truth when reasoning about the
+data model. (This system *does* now have a real payment concept as of Phase 27 — see below — but the
+dashboard's revenue figure was never updated to use it; it remains a pre-Phase-27 estimate.)
+
+### 8.4 `Payment` is deliberately decoupled from `Submission` and the dashboard
+
+Phase 27's `Payment` entity intentionally does **not** feed back into `Submission.status` or
+`DashboardService`'s figures. An admin still manually advances a submission through its
+`PENDING_CONSULTATION → CONFIRMED → IN_PROGRESS → GRADUATED` lifecycle regardless of payment state; a
+payment is surfaced on the admin submission-detail page as informational context only. This keeps the
+payment feature additive and low-risk (nothing about the existing submission/course/dashboard behavior
+changes), at the cost of the admin dashboard's `estimatedRevenueThisMonth` remaining an estimate rather than
+switching to real `Payment.status = PAID` data — a possible future enhancement, not done here.
+
+### 8.5 SePay webhook idempotency and the payment-code amount floor
+
+`PaymentService.handleSepayWebhook()` is designed to be safely called multiple times with the same payload
+(SePay, like most webhook senders, may redeliver): it never throws for a malformed/unrecognized/duplicate
+payload (logs and returns instead), always resulting in the controller responding `200 OK` so SePay doesn't
+retry indefinitely. Duplicate detection is two-layered — an app-level `existsBySepayTransactionId` check
+before doing any work, backed by the database's own `UNIQUE` constraint on `sepay_transaction_id` as a
+race-safety net (caught as `DataIntegrityViolationException` and treated as "already processed" if two
+webhook deliveries for the same transaction somehow race past the app-level check).
+
+The `paymentCode` embedded in a payment's VietQR `addInfo` field (`"DUP" + zero-padded id`, e.g.
+`DUP000042`) is a small, guessable, sequential value visible on the QR shown to the student. Without a
+floor on the webhook's reported `transferAmount`, anyone who knew the receiving bank account could send a
+trivial real transfer (e.g. 1,000 VND) with a guessed/observed code and have `PaymentService` mark an
+unrelated, much larger tuition payment `PAID`. `PaymentService.MINIMUM_AMOUNT_RATIO` (90%) guards against
+this: a transfer below 90% of the expected amount leaves the payment `PENDING` for manual admin review
+instead of auto-completing it, while a transfer at or above that floor (even if not an exact match, e.g. a
+bank-fee shortfall) is still accepted per the "bank transfer is the source of truth" design — this was a
+real issue found and fixed during Phase 27's independent review pass (see `CHECKLIST.md`'s Phase 27 log
+entry), not part of the original implementation.
 
 ---
 
 ## 9. Testing
 
-Full suite: `./gradlew clean build` (or `./gradlew test`) — **88 tests**, all passing as of Plan 2 D6.
+Full suite: `./gradlew clean build` (or `./gradlew test`) — **113 tests**, all passing as of Phase 27 (up
+from 88 as of Plan 2 D6; Phase 25 added `RateLimitingFilterTest` plus rate-limiting coverage inside
+`SecurityIntegrationTest`, bringing the pre-Phase-27 count to 93; Phase 27 then added 20 more: service unit
+tests, a `@WebMvcTest` controller test, and a full-context webhook integration test).
 
 | Class | Layer |
 |---|---|
 | `BackendApplicationTests` | Full context load, real Postgres |
-| `HealthControllerTest`, `SubmissionControllerTest`, `AdminSubmissionControllerTest`, `AuthControllerTest`, `DashboardControllerTest`, `CourseControllerTest`, `AdminCourseControllerTest` | `@WebMvcTest` slices, mocked services, `@MockitoBean` |
+| `HealthControllerTest`, `SubmissionControllerTest`, `AdminSubmissionControllerTest`, `AuthControllerTest`, `DashboardControllerTest`, `CourseControllerTest`, `AdminCourseControllerTest`, `AdminPaymentControllerTest` (Phase 27) | `@WebMvcTest` slices, mocked services, `@MockitoBean` |
 | `GlobalExceptionHandlerTest` | Exception → response shape mapping |
-| `SecurityIntegrationTest` | Full `@SpringBootTest`, real filter chain, real Postgres — login + per-request auth flows |
+| `SecurityIntegrationTest` | Full `@SpringBootTest`, real filter chain, real Postgres — login + per-request auth flows, including Phase 25's rate-limiting-header/429 coverage |
+| `RateLimitingFilterTest` (Phase 25) | Direct unit-level test of `RateLimitingFilter`'s window/limit logic |
 | `SubmissionApiIntegrationTest` | Full `@SpringBootTest` + `MockMvc`, **H2** (`test` profile) — real service/repository/Hibernate stack for the Submission API surface, proven hermetic (passes with local Postgres stopped) |
-| `SubmissionServiceTest`, `DashboardServiceTest`, `CourseServiceTest`, `CourseMapperTest` | Mockito unit tests |
+| `SepayWebhookIntegrationTest` (Phase 27) | Full `@SpringBootTest` + `MockMvc`, **H2** (`test` profile) — real end-to-end webhook flow: 401 on bad/missing auth header, 200-and-DB-flips-to-`PAID` on a valid payload, idempotent no-op on a replayed payload |
+| `SubmissionServiceTest`, `DashboardServiceTest`, `CourseServiceTest`, `CourseMapperTest`, `PaymentServiceTest` (Phase 27) | Mockito unit tests |
 
-H2 was chosen over PostgreSQL Testcontainers for `SubmissionApiIntegrationTest` because this dev machine
-has no Docker — documented tradeoff (H2 isn't a perfect PostgreSQL dialect match; revisit with
-Testcontainers if Docker becomes available) in that test class's own Javadoc.
+H2 was chosen over PostgreSQL Testcontainers for the full-context integration tests (`SubmissionApiIntegrationTest`,
+`SepayWebhookIntegrationTest`) because this dev machine has no Docker — documented tradeoff (H2 isn't a
+perfect PostgreSQL dialect match; revisit with Testcontainers if Docker becomes available) in
+`SubmissionApiIntegrationTest`'s own Javadoc. The `test` profile's `application-test.yml` also raises the
+rate-limit env-var-bound properties (`submissions-per-minute`/`login-attempts-per-minute`) far above the
+app's real defaults, so `RateLimitingFilter` — a real, shared singleton bean for the whole life of the test
+Spring context — doesn't start rejecting legitimate repeated test logins/submissions with `429` partway
+through a test class; `RateLimitingFilterTest` exercises the actual limiting behavior directly, unaffected
+by that override.
 
 ---
 
@@ -484,12 +701,22 @@ matters, discovered when `V5`'s Vietnamese seed data hit a WIN1252-encoded local
 
 - **Token revocation** — an issued JWT is valid until it expires; no server-side session/blacklist.
   Accepted tradeoff for this app's size (Phase 16 decision).
-- **Real payment/exam tracking** — revenue and pass-rate are estimates/admin-entered, by design (see
+- **Real exam-result tracking** — `passRatePercent`/`examCount` remain admin-entered, by design (see
   [Section 8.3](#83-estimated-revenue-and-pass-rate-are-not-real-data)) — not a gap to "fix," a deliberate
-  scope boundary from `plan-2-full-redesign-driveup.md`.
+  scope boundary from `plan-2-full-redesign-driveup.md`. (Tuition **payment** tracking, by contrast, does
+  now exist as of Phase 27's `Payment` entity — see [3.6](#36-payment-entitypaymentjava) — but the dashboard's
+  `estimatedRevenueThisMonth` still doesn't consume it; see [8.4](#84-payment-is-deliberately-decoupled-from-submission-and-the-dashboard).)
 - **"Giáo viên & Xe" (teachers/vehicles) as real entities** — `Course.teacherName` is a plain string;
   explicitly out of scope per the plan.
-- **PostgreSQL Testcontainers** for `SubmissionApiIntegrationTest` — currently H2, would need Docker on the
-  dev machine.
-- No rate limiting, request logging/auditing beyond SLF4J error logs.
-- Roadmap Phases 25–26 (Production Security Review, Final Architecture Review) not yet done.
+- **PostgreSQL Testcontainers** for the H2-based full-context integration tests
+  (`SubmissionApiIntegrationTest`, `SepayWebhookIntegrationTest`) — would need Docker on the dev machine.
+- **Payment expiry/aging-out** — `PaymentStatus` has no `EXPIRED` state and there's no scheduler/background
+  job to age out stale `PENDING` payments; a fresh payment can simply be generated instead (Phase 27
+  decision, see [3.6](#36-payment-entitypaymentjava)).
+- Request logging/auditing beyond SLF4J error logs (rate limiting itself **is** now implemented — Phase 25's
+  `RateLimitingFilter`, see [6.3](#63-security-security-package) — this bullet is about audit trails, not
+  abuse protection).
+- SePay webhook field names, auth-header scheme, and VietQR bank-code format are best-effort guesses,
+  explicitly flagged as unverified against a live SePay dashboard (see [4.13](#413-post-apiwebhookssepay) and
+  `docs/deployment/sepay-payment-workflow.md`) — confirm/adjust before relying on the real integration in
+  production.

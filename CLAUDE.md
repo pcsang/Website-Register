@@ -4,15 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-An "Information Collection & Admin Management System": a public form where users submit contact/inquiry
-information, and an admin area (dashboard, list, detail, status update) to manage those submissions.
+Started as a generic "Information Collection & Admin Management System" (public submission form + admin
+dashboard/list/detail/status-update). Since Plan 2 (see `docs/planning/plan-2-full-redesign-driveup.md`)
+it's been re-skinned and domain-adopted into **"DriveUp"**, a Vietnamese driving-school registration/admin
+platform: a public landing page with a course catalog + registration form, and an admin area
+(Overview/Students/Courses + submission detail) to manage registrations, courses, and — as of Phase 27 —
+VietQR/SePay tuition payments. The underlying `Submission`/`Course` domain and layered architecture are
+unchanged by the rebrand; see `PAGES.md` for what's on every page today.
 
-The full product spec, tech stack, target architecture, package structure, API design, and — most
-importantly — the **phased implementation roadmap** live in
+The original phased roadmap lives in
 [`java-spring-boot-angular-project-prompts.md`](java-spring-boot-angular-project-prompts.md) at the repo
-root. That file is the source of truth for "what comes next" and for the working rules below. Read it
-before planning any non-trivial change; this CLAUDE.md summarizes and operationalizes it, but does not
-replace it.
+root — useful for historical rationale on early decisions, but it predates the DriveUp rebrand and Phases
+24–27, so treat it as background, not as "what comes next." **For the actual current state of the code**,
+prefer these living docs over the roadmap doc or this file's own memory of past sessions:
+- [`docs/backend-specification.md`](docs/backend-specification.md) — current backend implementation
+  (entities, endpoints, config), re-derived from source, not from the roadmap.
+- [`docs/ui-specification.md`](docs/ui-specification.md) — current Angular implementation.
+- [`PAGES.md`](PAGES.md) — what's on every page today, from a user-facing angle.
+- [`CHECKLIST.md`](CHECKLIST.md) — phase-by-phase log of what was actually built and why, including
+  everything built outside the original numbered roadmap (the DriveUp redesign, Phase 27 SePay payments).
+
+This CLAUDE.md's job is narrower: the working rules below, and the local environment/commands section —
+not a restatement of current implementation state, which drifts too fast to keep duplicated here.
 
 ## Working rules (from the roadmap's "MASTER PROMPT FOR EVERY CODING STEP")
 
@@ -38,10 +51,19 @@ These are standing instructions for every task in this repo, not just the origin
 
 ## Current status
 
-Backend phases 1–5 of the roadmap are implemented: project init, PostgreSQL config, `Submission` entity,
-`POST /api/submissions`, and centralized exception handling. No Angular frontend exists yet. No
-authentication exists yet. Check `java-spring-boot-angular-project-prompts.md`'s "PHASE" headers against
-the codebase to see what's next (Phase 6 — admin submission list — is the likely next step).
+The numbered roadmap (Phases 1–26) plus an out-of-roadmap Phase 27 are all implemented and live: backend
+MVP, JWT admin auth, backend/integration tests, Dockerized + deployed to Render, Angular frontend deployed
+to Vercel, a full DriveUp UI/UX redesign (public landing page + course catalog + admin Overview/Students/
+Courses), a production security review, a final architecture review, and — most recently — SePay VietQR
+payment integration (Phase 27: generate a payment QR for a submission's tuition, a webhook marks it paid
+when the bank transfer lands). Live: `https://website-register-roan.vercel.app` (frontend),
+`https://backed-website-register.onrender.com` (backend).
+
+**Don't infer "what's next" from this section** — it goes stale the moment new work lands and won't be
+kept in lockstep with every future change. For the authoritative current state, read `CHECKLIST.md` (full
+phase-by-phase log, newest entries at the bottom of each numbered section) and the living specs listed
+above. If the user asks for a new feature not in `CHECKLIST.md`, treat it as new work to scope, not a
+roadmap phase to look up.
 
 ## Commands
 
@@ -117,22 +139,28 @@ generating its schema straight from the entities each run, per Phase 19's hermet
 
 ## Architecture
 
-Layered, Controller → Service → Repository, one JPA entity so far (`Submission`). Package structure under
-`com.register.backend` (`backend/src/main/java/com/register/backend/`):
+Layered, Controller → Service → Repository, now several JPA entities (`Submission`, `AdminUser`, `Course`,
+`DashboardSettings`, `Payment`). Package structure under `com.register.backend`
+(`backend/src/main/java/com/register/backend/`) — see
+[`docs/backend-specification.md`](docs/backend-specification.md) for the full, current, per-file detail
+(every entity's fields, every endpoint, every config property); this is just the shape:
 
 ```
-config/       empty so far
+config/       CORS policy, OpenAPI/Swagger metadata, AdminUserSeeder (startup admin seeding)
 controller/   thin REST controllers — validate input, delegate to a service, map to a response DTO
 dto/request/  inbound request bodies (Jakarta Validation annotations live here)
 dto/response/ outbound response bodies — the only shapes the API ever returns
 entity/       JPA entities
-enums/        e.g. SubmissionStatus (NEW, IN_PROGRESS, COMPLETED)
+enums/        SubmissionStatus, LicenseClass, CourseAvailabilityStatus, PaymentStatus
 exception/    ResourceNotFoundException, ErrorResponse, GlobalExceptionHandler (@RestControllerAdvice)
 mapper/       manual entity <-> DTO mapping (no MapStruct/ModelMapper — kept intentionally simple)
 repository/   Spring Data JpaRepository interfaces
-security/     empty so far — reserved for Phase 16 (JWT auth)
+security/     Spring Security 6 JWT config, JwtService, JwtAuthenticationFilter, RateLimitingFilter
 service/      business logic, @Transactional boundaries
 ```
+
+The Angular frontend (`clientUI/src/`) has its own equivalent living spec:
+[`docs/ui-specification.md`](docs/ui-specification.md).
 
 Key conventions established so far, worth matching in new code:
 

@@ -254,3 +254,43 @@ origin handling, and the documented CAPTCHA/spam deferral.
 ## Files changed by this review
 
 None — this is a read-only review; its only output is this document.
+
+---
+
+## Addendum (2026-09-22): Phase 27 — SePay Payment Integration
+
+Phase 27 shipped after this review and is not part of its original 20-area scope or summary table above —
+noted here rather than folded into the table so it's clear what was and wasn't covered by the original
+Phase 26 pass. See `CHECKLIST.md`'s Phase 27 entry for the full implementation log.
+
+- **Area 2 (REST API design):** two new endpoints follow the same conventions already found "no issue"
+  here — `POST`/`GET /api/admin/submissions/{id}/payment` sit under the existing `/api/admin/**` pattern,
+  and the new public `POST /api/webhooks/sepay` is the first genuinely public *mutating* endpoint in the
+  app (previously only `POST /api/submissions` and `POST /api/auth/login` were public + mutating, both
+  already rate-limited). It authenticates itself via a manually-checked shared-secret header rather than
+  Spring Security, since it's a server-to-server caller, not a browser session — a deliberate, documented
+  deviation from every other endpoint's auth model, not an oversight.
+- **Area 8 (Database performance):** `payments` (migration `V6`) follows the same indexing discipline as
+  the areas already flagged Nice-to-have here — an explicit index was added on the lookup column
+  (`submission_id`) this time, addressing the same class of gap noted for `submissions`/`courses` in the
+  original review, though those original columns remain unindexed.
+- **Area 19 (Testing — originally "Should improve," frontend coverage):** Phase 27 added 20 new tests (13
+  backend unit, 4 backend controller-slice, 3 backend full-context integration, 6 real frontend
+  assertions on the new payment UI) — a genuine data point in the right direction, but it doesn't resolve
+  the original finding: the 9 pre-existing frontend `.spec.ts` scaffolds (including `auth.guard.ts`/
+  `auth.interceptor.ts`) are still untested. Still **Should improve**, unchanged.
+- **Area 20 (Deployment — Critical, branch divergence):** unresolved, and now has one more consequence:
+  five new `SEPAY_*` environment variables (see `docs/deployment/sepay-payment-workflow.md`) must be set on
+  whichever branch/environment Render is *actually* running — if that's still `main` per this review's
+  original finding, the payment feature wouldn't just be insecure, it would be entirely non-functional
+  (blank bank details, placeholder webhook secret). This is additional evidence for the same
+  already-Critical finding, not a new one — the underlying issue and recommended resolution are unchanged.
+- **New area not in the original 20 — anti-fraud control:** worth recording even though it wasn't one of
+  the original review's checklist items: the payment webhook's `paymentCode` is a guessable sequential
+  value (by design — see Phase 27's log), so `PaymentService.handleSepayWebhook` enforces a 90%-of-expected-
+  amount floor before auto-marking a payment paid, specifically to prevent a trivial real transfer with a
+  guessed/observed code from faking a much larger payment. Added after an independent review of Phase 27
+  itself (not this document) flagged the gap; recorded here for anyone auditing payment-handling logic
+  later without re-reading the full Phase 27 checklist log.
+
+No code changed by this addendum — like the review it extends, it's a documentation-only update.
