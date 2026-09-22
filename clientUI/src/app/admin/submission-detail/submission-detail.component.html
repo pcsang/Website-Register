@@ -76,5 +76,67 @@
         </button>
       </div>
     </mat-card>
+
+    <mat-card class="payment-card">
+      <h2 class="payment-card__title"><svg lucideQrCode [size]="18"></svg>Thanh toán</h2>
+
+      @if (paymentLoading && !payment) {
+        <div class="state-loading">
+          <mat-spinner diameter="32"></mat-spinner>
+        </div>
+      } @else if (paymentNotFound) {
+        <div class="payment-empty">
+          <p>Chưa tạo yêu cầu thanh toán.</p>
+          <button
+            mat-raised-button
+            color="primary"
+            [disabled]="paymentGenerating"
+            (click)="generatePaymentQr()"
+          >
+            @if (paymentGenerating) {
+              <mat-spinner diameter="18"></mat-spinner>
+            } @else {
+              Tạo mã QR thanh toán
+            }
+          </button>
+        </div>
+      } @else if (payment) {
+        <div class="payment-details">
+          <img class="payment-qr" [src]="payment.qrImageUrl" alt="Mã QR thanh toán" />
+
+          <div class="payment-info">
+            <div class="detail-grid">
+              <div class="detail-label">Số tiền</div>
+              <div class="detail-value">{{ formattedPaymentAmount(payment.amount) }}</div>
+
+              <div class="detail-label">Mã thanh toán</div>
+              <div class="detail-value">{{ payment.paymentCode }}</div>
+
+              <div class="detail-label">Trạng thái</div>
+              <div class="detail-value">
+                <span
+                  class="status-badge"
+                  [ngClass]="'status-' + payment.status.toLowerCase()"
+                >{{ paymentStatusLabel(payment.status) }}</span>
+              </div>
+            </div>
+
+            <button
+              mat-stroked-button
+              color="primary"
+              [disabled]="paymentLoading"
+              (click)="refreshPaymentStatus()"
+            >
+              @if (paymentLoading) {
+                <mat-spinner diameter="18"></mat-spinner>
+              } @else {
+                <svg lucideRefreshCw [size]="16"></svg>
+                Làm mới trạng thái
+              }
+            </button>
+          </div>
+        </div>
+      }
+    </mat-card>
   }
 </div>

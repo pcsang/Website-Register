@@ -34,3 +34,9 @@ app:
     # itself; RateLimitingFilterTest exercises the actual limiting behavior directly, unaffected by this.
     submissions-per-minute: 1000
     login-attempts-per-minute: 1000
+  sepay:
+    webhook-secret: test-secret
+    bank-account-number: "0000000000"
+    bank-code: "970422"
+    account-holder-name: "TEST ACCOUNT"
+    qr-template: compact2

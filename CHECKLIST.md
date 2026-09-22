@@ -866,6 +866,69 @@ Leave unstarted phases as-is; don't pre-fill notes for work not yet done.
     No code changed by this phase — it is a read-only review; only `docs/architecture-review.md` (new) and
     this checklist entry were added.
 
+- [x] **Phase 27 — SePay Payment Integration (VietQR + Webhook)** (not part of the original numbered
+  roadmap — a new feature request)
+  - Log (2026-09-21): No payment concept existed before this phase (`Course.price` was stored but nothing
+    tracked whether a student had paid). Added a `Payment` entity/table (`V6__add_payments_table.sql`) tied
+    to `Submission` by a plain `submissionId` column (same style as `Submission.courseId` — no `@ManyToOne`),
+    statuses `PENDING`/`PAID`/`CANCELLED` (no `EXPIRED` — no scheduler in this app, deliberately deferred),
+    deliberately **decoupled** from `Submission.status` per user decision (admin still manually advances
+    submission status; payment is shown alongside as informational context, not auto-linked).
+    `PaymentService.createOrGetPendingPayment` snapshots `Course.price` into `Payment.amount` at creation
+    time so a later price edit never retroactively changes an already-generated QR; idempotent (a second
+    call returns the existing pending payment rather than creating a duplicate). VietQR image URL
+    (`img.vietqr.io`) is computed server-side from config (bank account/code/holder name) with no outbound
+    SePay API call needed. `POST /api/admin/submissions/{id}/payment` (create/get) and
+    `GET .../payment` (fetch) sit under the existing `/api/admin/**` security rule, no `SecurityConfig`
+    change needed. `POST /api/webhooks/sepay` is a new public route (outside `/api/admin/**`) that does its
+    own shared-secret check (`Authorization: Apikey <secret>` via `MessageDigest.isEqual`, not Spring
+    Security) since it's called by SePay's server, not a browser; `RateLimitingFilter` was deliberately
+    **not** extended to it (its per-IP model doesn't fit a single trusted server-to-server caller). Webhook
+    handling is idempotent by `sepayTransactionId` (app-level pre-check + a DB unique-constraint catch as a
+    race-safety net) and extracts the payment code (`DUP` + zero-padded payment id, e.g. `DUP000042`) from
+    the noisy bank transfer-content string via a tolerant regex.
+    Angular: `PaymentService` + `Payment` model (mirroring `SubmissionService`'s conventions), and a new
+    "Thanh toán" section on the Submission Detail page — "Tạo mã QR thanh toán" button, QR image, amount,
+    payment code, status badge, and a manual "Làm mới trạng thái" refresh button (no polling/websockets, by
+    design). A `GET .../payment` 404 is treated as the normal "no payment requested yet" empty state, not an
+    error toast.
+    Verified: `cd backend && .\gradlew clean build` — 113/113 tests pass (93 pre-existing + 20 new: service
+    unit tests, a `@WebMvcTest` controller test, and a full-context `SepayWebhookIntegrationTest` covering
+    401-on-bad-auth, 200-and-DB-flips-to-PAID on a valid payload, and idempotent no-op on a replayed
+    payload). `cd clientUI && npx ng build` succeeds; `npx ng test --watch=false --browsers=ChromeHeadless`
+    — 20/20 pass, including real assertions (not scaffold "should create" stubs) for the new payment
+    section's 404-empty-state, generate-success/failure, and refresh flows.
+    Independent review pass (separate from the two implementation agents) read every changed/new file, ran
+    the builds/tests itself rather than trusting prior reports, and found two real issues, both fixed before
+    this phase was considered done: **(1)** `SEPAY_WEBHOOK_SECRET`'s `application.yml` fallback
+    (`dev-only-insecure-sepay-secret-CHANGE-ME`) had no fail-fast override in `application-prod.yml`, unlike
+    the Phase 25 precedent already set for `JWT_SECRET`/`ADMIN_PASSWORD` — fixed by adding the same
+    no-fallback `${SEPAY_WEBHOOK_SECRET}` override there, so prod now refuses to start with the secret
+    unset rather than silently accepting a value that's plaintext-visible in git history. **(2)** the
+    derived `paymentCode` is a guessable sequential value (visible on the QR shown to the student) and the
+    webhook had no floor on the reported transfer amount — combined, this meant a trivial real bank transfer
+    (e.g. 1,000 VND) carrying a guessed/observed code could mark an unrelated, much larger tuition payment
+    as `PAID`. Confirmed with the user this was unintended (distinct from their earlier, still-honored
+    decision that *minor* amount mismatches should still be accepted, e.g. bank-fee-driven shortfalls); added
+    a 90%-of-expected-amount floor in `PaymentService.handleSepayWebhook` — a transfer below that floor now
+    leaves the payment `PENDING` for manual admin review instead of auto-marking it paid, with a new test
+    (`handleSepayWebhookLeavesPendingWhenTransferAmountIsWellBelowExpected`) covering it.
+    Explicitly flagged as unverified without live internet access, to be confirmed against the user's actual
+    SePay dashboard before/during production rollout: the exact webhook JSON field names, the exact
+    auth-header scheme (assumed `Authorization: Apikey <secret>`), and VietQR's exact bank-code format (BIN
+    vs. short code).
+    New `docs/deployment/sepay-payment-workflow.md` (2026-09-22): operational guide — the end-to-end flow
+    diagram, SePay dashboard configuration steps, the 5 new env vars, local testing via ngrok/curl (no
+    tunnel needed to exercise everything except the real SePay round-trip), an end-to-end live-verification
+    checklist, an explanation of the code-matching/idempotency/90%-amount-floor logic for troubleshooting,
+    and a troubleshooting section for the failure modes (401, stuck-PENDING, broken QR image, webhook never
+    arriving). Files changed: `V6__add_payments_table.sql`, `Payment.java`, `PaymentStatus.java`,
+    `PaymentRepository.java`, `PaymentResponse.java`, `SepayWebhookRequest.java`, `PaymentMapper.java`,
+    `PaymentService.java`, `AdminPaymentController.java`, `SepayWebhookController.java`,
+    `application.yml`, `application-prod.yml`, `application-test.yml`, `PaymentServiceTest.java`,
+    `AdminPaymentControllerTest.java`, `SepayWebhookIntegrationTest.java`, `payment.model.ts`,
+    `payment.service.ts`, `submission-detail.component.ts`/`.html`/`.scss`/`.spec.ts`, `styles.scss`.
+
 ---
 
 ## DriveUp UI/UX Redesign (proposed — not part of the original numbered roadmap)

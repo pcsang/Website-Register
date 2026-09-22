@@ -27,3 +27,8 @@ app:
     secret: ${JWT_SECRET}
   admin:
     password: ${ADMIN_PASSWORD}
+  sepay:
+    # Phase 27: same fail-fast reasoning as JWT_SECRET/ADMIN_PASSWORD above - application.yml's
+    # ${SEPAY_WEBHOOK_SECRET:dev-only-...} default must never be reachable in prod, since anyone who read
+    # it out of git history could forge POST /api/webhooks/sepay calls and mark arbitrary payments PAID.
+    webhook-secret: ${SEPAY_WEBHOOK_SECRET}

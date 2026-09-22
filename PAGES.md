@@ -153,6 +153,19 @@ fields show as `—`).
 - on success, refreshes the displayed submission and shows a success snackbar;
 - on failure, shows the backend's error message.
 
+**Payment (Thanh toán) — Phase 27:** a separate card showing this submission's tuition payment, kept
+**independent** of the status dropdown above (marking a payment received never auto-changes
+`Submission.status` — the admin still advances that manually).
+- If no payment has been requested yet: "Chưa tạo yêu cầu thanh toán." plus a "Tạo mã QR thanh toán"
+  button.
+- Once created: a VietQR code (`img.vietqr.io`, generated server-side from the site's configured bank
+  account — no card processing), the tuition amount, a payment code (`DUPnnnnnn`), a status badge (Chờ
+  thanh toán / Đã thanh toán / Đã huỷ), and a "Làm mới trạng thái" button.
+- The student scans the QR and transfers in their banking app; SePay (a linked bank-account-monitoring
+  service) POSTs a webhook to the backend when the transfer lands, which flips the status to "Đã thanh
+  toán" automatically — the admin's refresh button just re-fetches to see that update, there's no
+  live-push/polling on this page.
+
 **Load states:** loading spinner; "Submission not found." (404) with a back link; a generic load-error
 message with a back link. "Back to Students" returns to `/admin/students`.
 

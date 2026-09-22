@@ -58,3 +58,9 @@ app:
     # times) that's still tight enough to meaningfully slow down brute-forcing.
     submissions-per-minute: ${RATE_LIMIT_SUBMISSIONS_PER_MINUTE:5}
     login-attempts-per-minute: ${RATE_LIMIT_LOGIN_ATTEMPTS_PER_MINUTE:10}
+  sepay:
+    webhook-secret: ${SEPAY_WEBHOOK_SECRET:dev-only-insecure-sepay-secret-CHANGE-ME}
+    bank-account-number: ${SEPAY_BANK_ACCOUNT_NUMBER:}
+    bank-code: ${SEPAY_BANK_CODE:}
+    account-holder-name: ${SEPAY_ACCOUNT_HOLDER_NAME:}
+    qr-template: ${SEPAY_QR_TEMPLATE:compact2}
