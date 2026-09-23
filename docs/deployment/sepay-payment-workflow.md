@@ -13,6 +13,15 @@ This is **not** a deploy-it-for-you script — SePay dashboard configuration is 
 step (same as Render/Neon account setup in the other guides in this folder). This doc tells you exactly
 what to configure and how to verify it.
 
+**Rollout status (2026-09-23):** `main` has been lagging `develop` by 8 commits (through Phase 27) since
+Render auto-deploys from `main` — see `docs/architecture-review.md`'s Deployment addendum. Before
+fast-forwarding `main`, `SEPAY_WEBHOOK_SECRET` was generated locally and set on Render's Environment tab
+(required — no fallback in `application-prod.yml`, see §3 below) to avoid a crash-on-boot the moment
+Phase 27's code goes live. **Never record the actual secret value here or anywhere in this repo** — it
+exists only in Render's environment store and wherever you keep it yourself (password manager, etc.). The
+four remaining `SEPAY_BANK_*`/`SEPAY_QR_TEMPLATE` vars (§3) are not yet confirmed set — the payment feature
+won't produce a scannable QR until they are, but the app won't crash without them either.
+
 ---
 
 ## 0. What already exists in code (Phase 27)
