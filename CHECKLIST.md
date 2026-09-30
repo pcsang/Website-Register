@@ -1722,6 +1722,12 @@ not yet confirmed** — see that plan's "Decisions Needed" section before starti
     `assigned_to_id` column and the new `submission_notes` table), exactly as the plan's "explicitly allows
     combining them" note anticipated, since Phase B and Phase C were implemented in the same pass. No other
     deviation from the plan's Phase B/Phase C specs.
+  - **Fix (2026-09-22):** `./gradlew clean build` failed with Flyway's `FlywayException: Found more than
+    one migration with version 6` — this branch's `V6__add_submission_assignment_and_notes.sql` collided
+    with the already-live (Phase 27, production) `V6__add_payments_table.sql`. Renamed to
+    `V7__add_submission_assignment_and_notes.sql` (content unchanged) rather than editing the already-
+    applied payments migration. No entity/service code references the migration filename, so this was a
+    rename only.
 
 - [x] **Phase D — Frontend: Submission Detail page (assign + notes)** and **Phase E — Frontend: Students
   table (assigned-to column/filter)** — full plan at `docs/planning/plan-3-assign-submission-notes.md`.
