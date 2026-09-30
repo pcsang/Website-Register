@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import javax.crypto.SecretKey;
@@ -30,9 +31,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * whole authentication pipeline end to end — the actual {@code AdminUserSeeder}, a real signed token
  * issued by {@code POST /api/auth/login}, and the real {@link JwtAuthenticationFilter}/
  * {@link SecurityConfig} wiring — rather than mocking any of those collaborators individually.
+ *
+ * <p>Runs against the H2 in-memory {@code test} profile (see
+ * {@code src/test/resources/application-test.yml}), like the other {@code @SpringBootTest} classes in
+ * this suite, so the full test suite stays hermetic and never depends on a reachable local/dev
+ * PostgreSQL instance.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 class SecurityIntegrationTest {
 
     @Autowired
