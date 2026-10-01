@@ -156,7 +156,7 @@ export class LandingPageComponent implements OnInit {
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
     phone: ['', [Validators.required, Validators.pattern(VN_PHONE_PATTERN), Validators.maxLength(30)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(255)]],
-    licenseClass: ['' as LicenseClass | '', [Validators.required]]
+    courseId: [null as number | null, [Validators.required]]
   });
 
   /**
@@ -228,15 +228,15 @@ export class LandingPageComponent implements OnInit {
   }
 
   /**
-   * Pre-selects a course's license class in the registration form's dropdown, used when a
-   * visitor clicks a pricing card's "Chọn khoá học" button (which also anchor-scrolls to the
-   * registration section via its `href`).
+   * Pre-selects a course in the registration form's dropdown, used when a visitor clicks a
+   * pricing card's "Chọn khoá học" button (which also anchor-scrolls to the registration
+   * section via its `href`).
    *
-   * @param licenseClass the license class to pre-select
+   * @param courseId the course to pre-select
    * @returns void
    */
-  selectCourseClass(licenseClass: LicenseClass): void {
-    this.registrationForm.controls.licenseClass.setValue(licenseClass);
+  selectCourse(courseId: number): void {
+    this.registrationForm.controls.courseId.setValue(courseId);
   }
 
   /**
@@ -254,13 +254,12 @@ export class LandingPageComponent implements OnInit {
 
     this.submitting = true;
     const value = this.registrationForm.getRawValue();
-    const licenseClass = value.licenseClass as LicenseClass;
 
     const request: CreateSubmissionRequest = {
       fullName: (value.fullName ?? '').trim(),
       phone: (value.phone ?? '').trim(),
       email: (value.email ?? '').trim(),
-      courseId: this.resolveCourseId(licenseClass)
+      courseId: value.courseId ?? undefined
     };
 
     this.submissionService.createSubmission(request).subscribe({
@@ -273,18 +272,6 @@ export class LandingPageComponent implements OnInit {
         this.snackBar.open(this.extractErrorMessage(error), 'Đóng', { duration: 5000 });
       }
     });
-  }
-
-  /**
-   * Resolves a `courseId` for the selected license class by picking the first loaded course
-   * that matches it. Returns `undefined` (courseId omitted from the request) if no course of
-   * that class is currently loaded, since `CreateSubmissionRequest.courseId` is optional.
-   *
-   * @param licenseClass the license class selected in the registration form
-   * @returns the matching course's ID, or undefined if none is loaded
-   */
-  private resolveCourseId(licenseClass: LicenseClass): number | undefined {
-    return this.courses.find((course) => course.licenseClass === licenseClass)?.id;
   }
 
   /**

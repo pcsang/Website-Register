@@ -1589,6 +1589,31 @@ not yet confirmed** — see that plan's "Decisions Needed" section before starti
       verified here is that every field each section binds to is real, correctly shaped, and reachable
       end-to-end.
 
+### Out-of-roadmap work — Registration form bound to a real course ID (post-D5 fix)
+
+- (2026-10-01) The landing page's "Hạng bằng muốn học" registration field (`#dangky` section) was a
+  `licenseClass` dropdown (`B1`/`B2`/`C` literals), and `onSubmit()` resolved that back to a `courseId`
+  by picking the **first currently-loaded course of that class** (`resolveCourseId`) — silently wrong
+  once two courses shared a license class (e.g. the seeded `Hạng C` course and an ad-hoc test course
+  both being class `C`), since the registrant's actual choice of *course* was never captured, only a
+  license-class string. Requested directly, not a numbered roadmap phase.
+  - **Fix**: `LandingPageComponent`'s `registrationForm` control is now `courseId` (not `licenseClass`),
+    populated as a `mat-select` of `@for (course of courses; ...)` — the same `courses` array already
+    loaded from `GET /api/courses` for the pricing grid — labeled `${course.name} (${formattedPrice})`,
+    disabled while `coursesLoading` or empty. `onSubmit()` now sends that `courseId` straight through on
+    `CreateSubmissionRequest`; `resolveCourseId()` was deleted (no longer needed — the form already holds
+    a real course ID, no guessing required). `selectCourseClass(licenseClass)` (used by each pricing
+    card's "Chọn khoá học" CTA) was renamed `selectCourse(courseId)` and now pre-selects the exact course
+    the visitor clicked, not just its license class.
+  - Updated `landing-page.component.spec.ts`'s form-validity test (`courseId` instead of `licenseClass`)
+    and the living docs (`docs/ui-specification.md` §3.2, `PAGES.md`'s registration form field table).
+  - **Verification**: `ng build` succeeds clean (only the pre-existing bundle-size budget warnings,
+    unrelated to this change). `ng test` could not be run for this spec specifically — Karma compiles the
+    whole project regardless of `--include`, and a **pre-existing, unrelated** TS error in
+    `submission-detail.component.spec.ts` (`MOCK_SUBMISSION` missing the `assignedToId` field `Submission`
+    now requires) blocks the entire suite from compiling; confirmed via `git diff` that this file was
+    untouched by this change, so it predates it and is out of this task's scope to fix.
+
 ---
 
 ## Admin User Management (proposed — not part of the original numbered roadmap)

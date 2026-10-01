@@ -157,7 +157,7 @@
                 [class.btn--primary]="isPopular(course)"
                 [class.btn--outline]="!isPopular(course)"
                 href="#dangky"
-                (click)="selectCourseClass(course.licenseClass)"
+                (click)="selectCourse(course.id)"
               >
                 Chọn khoá học
               </a>
@@ -279,13 +279,13 @@
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Hạng bằng muốn học</mat-label>
-              <mat-select formControlName="licenseClass" required>
-                <mat-option value="B1">Hạng B1</mat-option>
-                <mat-option value="B2">Hạng B2</mat-option>
-                <mat-option value="C">Hạng C</mat-option>
+              <mat-select formControlName="courseId" required [disabled]="coursesLoading || courses.length === 0">
+                @for (course of courses; track course.id) {
+                  <mat-option [value]="course.id">{{ course.name }} ({{ formattedPrice(course) }})</mat-option>
+                }
               </mat-select>
-              @if (registrationForm.controls.licenseClass.touched && registrationForm.controls.licenseClass.hasError('required')) {
-                <mat-error>Vui lòng chọn hạng bằng.</mat-error>
+              @if (registrationForm.controls.courseId.touched && registrationForm.controls.courseId.hasError('required')) {
+                <mat-error>Vui lòng chọn khoá học.</mat-error>
               }
             </mat-form-field>
 

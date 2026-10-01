@@ -38,7 +38,7 @@ The public-facing entry point of the site — a single scrolling marketing + reg
 4. **Khoá học (Courses)** — a pricing grid showing **real courses loaded from the backend**
    (`GET /api/courses`), not fixed text. Whichever course is license class **B2** gets a highlighted
    "Phổ biến nhất" (most popular) treatment. Each card shows the price, duration, practice hours, and a
-   "Chọn khoá học" button that scrolls down and pre-selects that license class in the registration form.
+   "Chọn khoá học" button that scrolls down and pre-selects that exact course in the registration form.
 5. **Quy trình (Process)** — 4 fixed steps from inquiry to first day of class.
 6. **Đánh giá (Reviews)** — 3 fixed testimonial cards with star ratings.
 7. **Đăng ký tư vấn (Registration form)** — the actual signup form:
@@ -48,12 +48,12 @@ The public-facing entry point of the site — a single scrolling marketing + reg
    | Họ và tên (Full name) | Yes | max 200 chars |
    | Số điện thoại (Phone) | Yes | Vietnamese mobile format (`0` or `+84` + `3/5/7/8/9` + 8 digits) |
    | Email | Yes | valid email format, max 255 chars |
-   | Hạng bằng muốn học (License class) | Yes | one of B1 / B2 / C |
+   | Hạng bằng muốn học (which course to study) | Yes | a real course, picked from the same list loaded from `GET /api/courses` for the pricing grid above — not a generic B1/B2/C choice |
 
    These validators are **stricter** than what the backend actually requires (phone/email are optional
-   server-side) — deliberately, per this page's own design. Submitting posts to
-   `POST /api/submissions`, resolving the chosen license class to a real course ID behind the scenes. On
-   success, the form is replaced with a "Đăng ký thành công!" confirmation — no page navigation.
+   server-side) — deliberately, per this page's own design. Submitting posts to `POST /api/submissions`
+   with that course's real ID directly. On success, the form is replaced with a "Đăng ký thành công!"
+   confirmation — no page navigation.
 8. **Footer** — dark, 4 columns (brand blurb, course links, company links, contact info) + copyright line.
 
 **Behavior notes:**
