@@ -171,16 +171,18 @@ Replaces `InformationFormComponent` (deleted). All 8 sections from
 6. **Reviews** (`#reviews`) — static 3 testimonial cards (`testimonials`, hardcoded — names/roles/quotes
    verbatim from the design doc).
 7. **Registration form** (`#dangky`) — `FormBuilder` reactive form: `fullName`/`phone` (Vietnamese mobile
-   pattern `^(0|\+84)(3|5|7|8|9)[0-9]{8}$`)/`email`/`licenseClass`, **all required** (stricter than the
+   pattern `^(0|\+84)(3|5|7|8|9)[0-9]{8}$`)/`email`/`courseId`, **all required** (stricter than the
    backend's `CreateSubmissionRequest`, which makes `email`/`phone` optional — a deliberate per-page choice
-   matching this page's own design spec). `onSubmit()` resolves the selected `licenseClass` to a `courseId`
-   by picking the first currently-loaded course of that class (`resolveCourseId`) — omitted from the
-   request if none is loaded, since `courseId` is optional server-side. On success: hides the form, shows a
-   success state (`submitted` flag) rather than navigating away.
+   matching this page's own design spec). The "Hạng bằng muốn học" field is a `mat-select` whose options
+   are the same `courses` array loaded for the pricing grid (label: `${course.name} (${formattedPrice})`),
+   disabled while `coursesLoading` or empty — so the registrant picks a real, specific course row, not a
+   generic license-class string. `onSubmit()` sends that `courseId` straight through on
+   `CreateSubmissionRequest`, no server-side resolution needed. On success: hides the form, shows a success
+   state (`submitted` flag) rather than navigating away.
 8. **Footer** — static 4-column dark footer.
 
-`selectCourseClass(licenseClass)` — clicking a pricing card's CTA pre-fills the registration form's
-`licenseClass` dropdown (the anchor `href` handles the scroll).
+`selectCourse(courseId)` — clicking a pricing card's CTA pre-fills the registration form's `courseId`
+dropdown with that exact course (the anchor `href` handles the scroll).
 
 ### 3.3 `OverviewComponent` (`admin/overview/`)
 

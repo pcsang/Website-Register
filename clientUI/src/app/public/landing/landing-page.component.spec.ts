@@ -57,7 +57,7 @@ describe('LandingPageComponent', () => {
       fullName: 'Nguyễn Văn A',
       phone: '0912345678',
       email: 'a@example.com',
-      licenseClass: 'B1'
+      courseId: 1
     });
     expect(component.registrationForm.valid).toBe(true);
   });
